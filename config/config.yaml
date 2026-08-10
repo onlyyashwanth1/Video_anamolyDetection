@@ -1,0 +1,24 @@
+# Central config - every tunable number in the pipeline lives here,
+# instead of being hardcoded across different files.
+
+video:
+  target_fps: 1.0             # Step 1: how many frames/sec to sample
+
+encoder:
+  model_name: "openai/clip-vit-base-patch32"   # Step 2
+
+segmentation:
+  coarse_threshold: 0.80      # Step 3: similarity below this = new top-level event
+  fine_threshold: 0.92        # Step 3: similarity below this = new sub-event
+
+familiarisation:
+  observation_window_frames: 500     # Steps 5-6: how many frames before alerting starts
+  observation_window_minutes: 10
+
+memory:
+  promotion_repeat_count: 3   # Step 7: repetitions needed before auto-promoting to "normal"
+
+inference:
+  anomaly_threshold: 0.60     # Steps 8-9: similarity below this (best match) = anomaly
+                               # NOTE: this is a starting guess, not tuned yet.
+                               # See docs/PROJECT_STATUS.md for the tuning plan.

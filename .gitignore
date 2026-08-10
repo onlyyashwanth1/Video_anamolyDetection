@@ -1,0 +1,45 @@
+# Virtual environment - never commit this, it's huge and machine-specific
+venv/
+env/
+.venv/
+
+# Python bytecode/cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+build/
+dist/
+
+# Downloaded model weights / Hugging Face cache (if it ends up inside the project folder)
+*.pt
+*.pth
+*.bin
+*.safetensors
+.cache/
+
+# OS-specific junk files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE settings
+.vscode/
+.idea/
+*.swp
+
+# Environment variables / secrets (if you ever add an API key file)
+.env
+
+# Large test video/media files - don't commit these, they bloat the repo
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Jupyter notebook checkpoints, if you use any
+.ipynb_checkpoints/
+
+# pytest cache
+.pytest_cache/

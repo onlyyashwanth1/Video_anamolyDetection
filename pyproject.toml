@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anomaly-detection"
+version = "0.1.0"
+description = "Training-free, domain-independent video anomaly detection framework"
+requires-python = ">=3.9"
+
+[tool.setuptools.packages.find]
+where = ["src"]

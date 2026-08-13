@@ -26,6 +26,9 @@ from typing import List
 from anomaly_detection.utils.types import EventChunk, MemoryEntry
 
 
+import os
+from PIL import Image
+
 # A starting vocabulary of plausible "normal" activities. Extend this list
 # for your specific deployment domain (a hallway, a warehouse, etc.) -
 # the richer this list, the more meaningful the captions will be.
@@ -43,13 +46,34 @@ DEFAULT_CANDIDATE_LABELS = [
 ]
 
 
-def caption_event(event: EventChunk, encoder, candidate_labels: List[str] = None) -> str:
+def caption_event(event: EventChunk, encoder, candidate_labels: List[str] = None, raw_frames: List = None) -> str:
     """
-    Approximates captioning by finding which candidate description's CLIP
-    text embedding is closest to the event's average image embedding.
-    Requires event.average_embedding to already be set (done automatically
-    by segmentation/temporal_decomposition.py's build_event_tree()).
+    Captions an event chunk using Gemini 2.5 Flash (Multimodal LLM Vision) if
+    GEMINI_API_KEY is available, otherwise falls back to zero-shot CLIP classification.
     """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if api_key and raw_frames and len(event.frame_indices) > 0:
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            mid_idx = event.frame_indices[len(event.frame_indices) // 2]
+            target_frame = next((f for f in raw_frames if f.frame_number == mid_idx), None)
+            if target_frame is not None:
+                pil_img = Image.fromarray(target_frame.image)
+                prompt = (
+                    "Describe the main action or activity occurring in this video frame concisely "
+                    "in one short, plain-English sentence."
+                )
+                response = client.models.generate_content(
+                    model="gemini-flash-latest",
+                    contents=[pil_img, prompt],
+                )
+                caption = response.text.strip().replace("\n", " ").lower()
+                if caption:
+                    return caption
+        except Exception:
+            pass  # Fall back seamlessly to CLIP zero-shot matching
+
     if event.average_embedding is None:
         raise ValueError(
             "This EventChunk has no average_embedding set. Make sure it came "

@@ -39,7 +39,7 @@ def main():
 
     config = load_config(args.config)
     print(f"Running Steps 1-3 on source: {source}")
-    tree, _encoder = run_steps_1_to_3(source, config)
+    tree, _encoder, _frames = run_steps_1_to_3(source, config)
 
     print(f"\nFound {len(tree)} top-level events:")
     print_tree(tree)

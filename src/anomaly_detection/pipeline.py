@@ -27,7 +27,7 @@ def load_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def run_steps_1_to_3(video_source, config: dict) -> List[EventChunk]:
+def run_steps_1_to_3(video_source, config: dict):
     """
     Runs Steps 1-3: video in -> CLIP fingerprints -> event tree.
     Each returned EventChunk has .average_embedding set, ready for
@@ -45,25 +45,14 @@ def run_steps_1_to_3(video_source, config: dict) -> List[EventChunk]:
         coarse_threshold=config["segmentation"]["coarse_threshold"],
         fine_threshold=config["segmentation"]["fine_threshold"],
     )
-    return tree, encoder
+    return tree, encoder, [ef.frame for ef in encoded_frames]
 
 
 def run_full_pipeline(video_source, config: dict) -> Tuple[List[str], MemoryBank, List[AnomalyResult]]:
     """
-    Runs Steps 1-9 end to end on a single video/webcam source:
-
-        video in -> fingerprints -> event tree                     (Steps 1-3)
-        -> caption the first `observation_fraction` of events      (Step 5)
-        -> build + embed the "Normal" notebook from them            (Steps 5-6)
-        -> initialize the memory bank                                (Step 7)
-        -> score every remaining event against the notebook          (Steps 8-9)
-
-    Step 4 (masking) and Step 10 (LLM explanation) are not yet wired in -
-    see docs/PROJECT_STATUS.md.
-
-    Returns: (notebook_sentences, memory_bank, results_for_live_events)
+    Runs Steps 1-10 end to end on a single video/webcam source.
     """
-    tree, encoder = run_steps_1_to_3(video_source, config)
+    tree, encoder, raw_frames = run_steps_1_to_3(video_source, config)
 
     if len(tree) < 2:
         raise ValueError(
@@ -79,7 +68,7 @@ def run_full_pipeline(video_source, config: dict) -> Tuple[List[str], MemoryBank
     live_events = tree[split_index:]
 
     # --- Steps 5-6: build the "Normal" notebook ---
-    captions = [caption_event(e, encoder) for e in familiarisation_events]
+    captions = [caption_event(e, encoder, raw_frames=raw_frames) for e in familiarisation_events]
     for event, caption in zip(familiarisation_events, captions):
         event.description = caption
 
@@ -92,20 +81,18 @@ def run_full_pipeline(video_source, config: dict) -> Tuple[List[str], MemoryBank
     # --- Step 7: initialize the memory bank ---
     memory_bank = MemoryBank(initial_entries=memory_entries)
 
-    # --- Steps 8-9: score every live event against the notebook ---
+    # --- Steps 8-10: score every live event against the notebook & rationalize anomalies ---
     threshold = config["inference"]["anomaly_threshold"]
     results: List[AnomalyResult] = []
     for event in live_events:
-        event.description = caption_event(event, encoder)  # caption every live event too, for readable output
+        event.description = caption_event(event, encoder, raw_frames=raw_frames)  # caption every live event too
         result = score_event(event, memory_bank, threshold)
-        results.append(result)
 
-        # Demonstrates the Step 7 familiarity-counter mechanism: recurring
-        # anomalies eventually get promoted into "normal" instead of being
-        # flagged forever. On a single short demo run this rarely triggers
-        # (not enough repeats), but the logic is real and testable.
         if result.is_anomaly:
+            result = explain_anomaly(result, constitution)
             memory_bank.log_unmatched(event.description, event.average_embedding)
             memory_bank.try_promote(event.description, config["memory"]["promotion_repeat_count"])
+
+        results.append(result)
 
     return constitution, memory_bank, results

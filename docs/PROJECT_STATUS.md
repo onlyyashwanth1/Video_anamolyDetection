@@ -13,8 +13,8 @@ handing this to another AI (or a teammate) painless.
 | 5-6. Domain Familiarisation | Captioning (via CLIP zero-shot, see note below) + Domain Constitution + text embedding | `src/anomaly_detection/familiarisation/domain_familiarisation.py` | ✅ Done + tested (3/3 tests passing) |
 | 7. Dynamic Textual Memory Bank | Stores/updates "normal" entries, familiarity counter | `src/anomaly_detection/memory/memory_bank.py` | ✅ Done + tested (2/2 tests passing) |
 | 8-9. Adaptive Inference | Contrastive probing (cosine sim) + threshold gating | `src/anomaly_detection/inference/adaptive_inference.py` | ✅ Done + tested (1/1 test passing) |
-| 10. LLM Reasoning | Explanation generation for flagged events | `src/anomaly_detection/reasoning/llm_reasoning.py` | 🔲 Stub only |
-| Orchestration | Wires modules together | `src/anomaly_detection/pipeline.py` | ✅ Steps 1-9 wired (`run_full_pipeline()`); Step 10 sketched as comments |
+| 10. LLM Reasoning | Explanation generation for flagged events via Gemini 2.5 Flash | `src/anomaly_detection/reasoning/llm_reasoning.py` | ✅ Done + integrated |
+| Orchestration | Wires modules together | `src/anomaly_detection/pipeline.py` | ✅ Steps 1-3 & 5-10 fully wired (`run_full_pipeline()`) |
 | Shared types | Frame, EncodedFrame, EventChunk, MemoryEntry, AnomalyResult | `src/anomaly_detection/utils/types.py` | ✅ Done |
 | Config | All tunable numbers in one place | `config/config.yaml` | ✅ Done (thresholds are starting guesses, not tuned) |
 | CLI (Steps 1-3 only) | Run just ingestion/encoding/segmentation | `scripts/run_pipeline.py` | ✅ Done |

@@ -35,6 +35,8 @@ def print_results(results):
         print(f"[{flag}] t={r.event.start_time:.1f}-{r.event.end_time:.1f}s "
               f"  score={r.anomaly_score:.3f}  seen as: \"{r.event.description}\"")
         print(f"           closest match in notebook: \"{r.closest_match}\"")
+        if r.explanation:
+            print(f"           Explanation: {r.explanation}")
 
 
 def main():

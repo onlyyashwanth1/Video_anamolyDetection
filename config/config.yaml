@@ -5,20 +5,26 @@ video:
   target_fps: 1.0             # Step 1: how many frames/sec to sample
 
 encoder:
-  model_name: "openai/clip-vit-base-patch32"   # Step 2
+  model_name: "openai/clip-vit-large-patch14"   # Step 2 (768-dim vector space, paper & mentor spec)
 
 segmentation:
-  coarse_threshold: 0.80      # Step 3: similarity below this = new top-level event
-  fine_threshold: 0.92        # Step 3: similarity below this = new sub-event
+  coarse_threshold: 0.90      # Step 3: similarity below this = new top-level event (tuned for ViT-L/14)
+  fine_threshold: 0.95        # Step 3: similarity below this = new sub-event (tuned for ViT-L/14)
 
 familiarisation:
   observation_window_frames: 500     # Steps 5-6: how many frames before alerting starts
+                                       # (intended for long/continuous real deployments)
   observation_window_minutes: 10
+  observation_fraction: 0.4           # For short demo clips: use the first 40% of a
+                                       # video's top-level events to build the "normal"
+                                       # notebook, and treat the remaining 60% as new
+                                       # events to test for anomalies against it.
+  min_caption_occurrences: 1          # A caption must appear at least this many times
+                                       # during familiarisation to be kept in the notebook.
+                                       # Raise this for longer real deployments.
 
 memory:
   promotion_repeat_count: 3   # Step 7: repetitions needed before auto-promoting to "normal"
 
 inference:
-  anomaly_threshold: 0.60     # Steps 8-9: similarity below this (best match) = anomaly
-                               # NOTE: this is a starting guess, not tuned yet.
-                               # See docs/PROJECT_STATUS.md for the tuning plan.
+  anomaly_threshold: 0.80     # Steps 8-9: threshold for flagging anomalies (paper default alpha=0.25 -> 0.80 score cutoff)

@@ -78,6 +78,7 @@ def build_event_tree(encoded_frames: List[EncodedFrame],
             start_time=first.timestamp_sec,
             end_time=last.timestamp_sec,
             frame_indices=group,
+            average_embedding=_average_embedding(embeddings, group),
         )
 
         # Only worth splitting further if the coarse event spans a few frames
@@ -92,8 +93,20 @@ def build_event_tree(encoded_frames: List[EncodedFrame],
                         start_time=f_first.timestamp_sec,
                         end_time=f_last.timestamp_sec,
                         frame_indices=fg,
+                        average_embedding=_average_embedding(embeddings, fg),
                     ))
 
         tree.append(coarse_chunk)
 
     return tree
+
+
+def _average_embedding(embeddings: List[np.ndarray], indices: List[int]) -> np.ndarray:
+    """
+    Represents a whole event as one fingerprint: the mean of its member frames'
+    embeddings, re-normalized. This is what familiarisation/inference compare
+    against, instead of having to pick one arbitrary representative frame.
+    """
+    stacked = np.stack([embeddings[i] for i in indices])
+    mean = stacked.mean(axis=0)
+    return mean / np.linalg.norm(mean)

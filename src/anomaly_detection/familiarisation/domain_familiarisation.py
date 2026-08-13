@@ -1,61 +1,99 @@
 """
-Steps 5-6: Domain Familiarisation  [NOT YET IMPLEMENTED]
+Steps 5-6: Domain Familiarisation
 ------------------------------------------------------------------
 Paper reference: "Phase 1: Online Domain Familiarisation" - during an
-initial observation window (e.g. first 10 minutes / 500 frames), a
-Multimodal LLM (LLaVA / GPT-4o) describes sampled events in plain English.
-Recurring patterns get written into a "Domain Constitution" - a short list
-of what's normal for this specific location. Each sentence then gets
-embedded via CLIP's text encoder (Step 6) so it's directly comparable to
-image fingerprints.
+initial observation window, sampled events get described in plain
+English, recurring patterns get written into a "Domain Constitution"
+(the "Normal" notebook), and each sentence gets embedded via CLIP's text
+encoder (Step 6) so it's directly comparable to image fingerprints.
 
-Where this fits in the pipeline:
-    segmentation (Step 3/4) -> familiarisation (THIS MODULE), only during
-    the initial observation window. After that window ends, this module
-    stops being called and memory/inference take over.
-
-Planned interface:
-    caption_event(event: EventChunk, encoder: ClipEncoder) -> str
-        Samples a representative frame from the event and asks a
-        multimodal LLM to describe it in plain English.
-
-    build_domain_constitution(captions: list[str]) -> list[str]
-        Clusters/deduplicates captions into a short list of recurring
-        "normal" patterns (the Domain Constitution).
-
-    embed_constitution(constitution: list[str], encoder: ClipEncoder) -> list[MemoryEntry]
-        Converts each constitution sentence into a MemoryEntry using
-        encoder.encode_text(), ready to be handed to memory/memory_bank.py.
-
-TODO:
-    - Pick and integrate a multimodal captioning API/model (e.g. an LLM
-      with vision input, called via API or a local model like LLaVA)
-    - Implement caption clustering/deduplication logic
-    - Wire the observation-window length in from config/config.yaml
-      (see: familiarisation.observation_window_frames)
+IMPLEMENTATION NOTE (documented simplification, same pattern as Step 3's
+GEBD stand-in): the paper calls for a full Multimodal LLM (LLaVA/GPT-4o)
+to freely caption each event. That requires an external API or a large
+local model. Instead, caption_event() below uses CLIP itself in
+"zero-shot classification" mode: it compares the event's fingerprint
+against a fixed list of candidate plain-English descriptions and picks
+the closest one. This is a real, working captioning mechanism - just
+limited to the candidate list you provide, rather than being able to
+describe absolutely anything. Swapping in a true multimodal LLM later
+only requires rewriting caption_event(); build_domain_constitution() and
+embed_constitution() don't need to change.
 """
 
+from collections import Counter
 from typing import List
 
 from anomaly_detection.utils.types import EventChunk, MemoryEntry
 
 
-def caption_event(event: EventChunk, encoder) -> str:
-    raise NotImplementedError(
-        "Event captioning via a multimodal LLM is not implemented yet. "
-        "See this module's docstring for the planned interface and TODOs."
-    )
+# A starting vocabulary of plausible "normal" activities. Extend this list
+# for your specific deployment domain (a hallway, a warehouse, etc.) -
+# the richer this list, the more meaningful the captions will be.
+DEFAULT_CANDIDATE_LABELS = [
+    "an empty room with no people",
+    "a person walking through the scene",
+    "a person standing still",
+    "a person sitting down",
+    "multiple people present in the scene",
+    "a person entering the frame",
+    "a person leaving the frame",
+    "an object being moved or picked up",
+    "no significant motion, a static scene",
+    "a person facing the camera",
+]
 
 
-def build_domain_constitution(captions: List[str]) -> List[str]:
-    raise NotImplementedError(
-        "Domain Constitution building is not implemented yet. "
-        "See this module's docstring for the planned interface and TODOs."
-    )
+def caption_event(event: EventChunk, encoder, candidate_labels: List[str] = None) -> str:
+    """
+    Approximates captioning by finding which candidate description's CLIP
+    text embedding is closest to the event's average image embedding.
+    Requires event.average_embedding to already be set (done automatically
+    by segmentation/temporal_decomposition.py's build_event_tree()).
+    """
+    if event.average_embedding is None:
+        raise ValueError(
+            "This EventChunk has no average_embedding set. Make sure it came "
+            "from build_event_tree(), which computes this automatically."
+        )
+
+    labels = candidate_labels or DEFAULT_CANDIDATE_LABELS
+    best_label, best_score = None, -1.0
+    for label in labels:
+        label_embedding = encoder.encode_text(label)
+        score = encoder.cosine_similarity(event.average_embedding, label_embedding)
+        if score > best_score:
+            best_label, best_score = label, score
+
+    return best_label
 
 
-def embed_constitution(constitution: List[str], encoder) -> List[MemoryEntry]:
-    raise NotImplementedError(
-        "Constitution embedding is not implemented yet. "
-        "See this module's docstring for the planned interface and TODOs."
-    )
+def build_domain_constitution(captions: List[str], min_occurrences: int = 1) -> List[str]:
+    """
+    Turns a list of raw captions (one per familiarisation-window event,
+    with repeats) into a deduplicated list of recurring "normal" patterns.
+
+    min_occurrences: a caption must appear at least this many times to be
+    included. Default of 1 means "include everything seen at least once" -
+    fine for short demo clips. Raise this for longer, real deployments so
+    one-off captions don't get treated as permanently normal.
+    """
+    counts = Counter(captions)
+    # Preserve first-seen order, but only keep captions meeting the threshold
+    seen = []
+    for caption in captions:
+        if caption not in seen and counts[caption] >= min_occurrences:
+            seen.append(caption)
+    return seen
+
+
+def embed_constitution(constitution: List[str], encoder, occurrence_counts: Counter = None) -> List[MemoryEntry]:
+    """
+    Converts each Domain Constitution sentence into a MemoryEntry (Step 6),
+    ready to be handed to memory/memory_bank.py's MemoryBank.
+    """
+    entries = []
+    for text in constitution:
+        embedding = encoder.encode_text(text)
+        count = occurrence_counts[text] if occurrence_counts else 1
+        entries.append(MemoryEntry(text=text, embedding=embedding, occurrence_count=count))
+    return entries

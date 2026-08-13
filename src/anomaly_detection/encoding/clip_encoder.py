@@ -22,6 +22,16 @@ from transformers import CLIPModel, CLIPProcessor
 from anomaly_detection.utils.types import Frame, EncodedFrame
 
 
+def _unwrap_features(output):
+    """Handles both raw-tensor and wrapped-object return types across transformers versions."""
+    if torch.is_tensor(output):
+        return output
+    for attr in ("image_embeds", "text_embeds", "pooler_output"):
+        if hasattr(output, attr):
+            return getattr(output, attr)
+    return output[0]
+
+
 class ClipEncoder:
     def __init__(self, model_name: str = "openai/clip-vit-base-patch32", device: str = None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -37,7 +47,8 @@ class ClipEncoder:
         """
         pil_image = Image.fromarray(image)
         inputs = self.processor(images=pil_image, return_tensors="pt").to(self.device)
-        features = self.model.get_image_features(**inputs)
+        raw_output = self.model.get_image_features(**inputs)
+        features = _unwrap_features(raw_output)
         features = features / features.norm(dim=-1, keepdim=True)
         return features.squeeze(0).cpu().numpy()
 
@@ -52,7 +63,8 @@ class ClipEncoder:
         returns: a normalized 1D numpy vector, in the SAME space as encode_image's output
         """
         inputs = self.processor(text=[text], return_tensors="pt", padding=True).to(self.device)
-        features = self.model.get_text_features(**inputs)
+        raw_output = self.model.get_text_features(**inputs)
+        features = _unwrap_features(raw_output)
         features = features / features.norm(dim=-1, keepdim=True)
         return features.squeeze(0).cpu().numpy()
 

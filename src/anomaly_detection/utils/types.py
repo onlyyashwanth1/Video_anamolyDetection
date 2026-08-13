@@ -41,6 +41,8 @@ class EventChunk:
     frame_indices: List[int] = field(default_factory=list)
     children: List["EventChunk"] = field(default_factory=list)
     description: Optional[str] = None  # filled in later by familiarisation/reasoning steps
+    average_embedding: Optional[np.ndarray] = None  # mean CLIP fingerprint for the whole event,
+                                                       # set by segmentation/temporal_decomposition.py
 
     def __repr__(self):
         return (f"EventChunk(frames {self.start_frame}-{self.end_frame}, "

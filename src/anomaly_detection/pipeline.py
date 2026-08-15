@@ -11,6 +11,7 @@ from collections import Counter
 from typing import List, Tuple
 import yaml
 
+from anomaly_detection.masking.object_masking import mask_frame
 from anomaly_detection.ingestion.video_stream import VideoStream
 from anomaly_detection.encoding.clip_encoder import ClipEncoder
 from anomaly_detection.segmentation.temporal_decomposition import build_event_tree
@@ -19,6 +20,7 @@ from anomaly_detection.familiarisation.domain_familiarisation import (
 )
 from anomaly_detection.memory.memory_bank import MemoryBank
 from anomaly_detection.inference.adaptive_inference import score_event
+from anomaly_detection.reasoning.llm_reasoning import explain_anomaly
 from anomaly_detection.utils.types import EncodedFrame, EventChunk, AnomalyResult
 
 
@@ -29,15 +31,16 @@ def load_config(path: str) -> dict:
 
 def run_steps_1_to_3(video_source, config: dict):
     """
-    Runs Steps 1-3: video in -> CLIP fingerprints -> event tree.
-    Each returned EventChunk has .average_embedding set, ready for
-    familiarisation/inference to use.
+    Runs Steps 1-4: video in -> YOLO-World+ByteTrack spatial masking -> CLIP fingerprints -> event tree.
     """
     stream = VideoStream(source=video_source, target_fps=config["video"]["target_fps"])
     encoder = ClipEncoder(model_name=config["encoder"]["model_name"])
 
+    raw_frames = list(stream.frames())
+    masked_frames = [mask_frame(f) for f in raw_frames]
+
     encoded_frames: List[EncodedFrame] = [
-        encoder.encode_frame(frame) for frame in stream.frames()
+        encoder.encode_frame(frame) for frame in masked_frames
     ]
 
     tree = build_event_tree(
@@ -45,7 +48,7 @@ def run_steps_1_to_3(video_source, config: dict):
         coarse_threshold=config["segmentation"]["coarse_threshold"],
         fine_threshold=config["segmentation"]["fine_threshold"],
     )
-    return tree, encoder, [ef.frame for ef in encoded_frames]
+    return tree, encoder, raw_frames
 
 
 def run_full_pipeline(video_source, config: dict) -> Tuple[List[str], MemoryBank, List[AnomalyResult]]:

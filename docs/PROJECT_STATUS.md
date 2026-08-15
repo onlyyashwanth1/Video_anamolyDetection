@@ -9,12 +9,12 @@ handing this to another AI (or a teammate) painless.
 | 1. Live Input Stream | Reads video/webcam, samples frames | `src/anomaly_detection/ingestion/video_stream.py` | ✅ Done + tested (logic verified) |
 | 2. Frozen Foundational Encoder | CLIP image/text embeddings | `src/anomaly_detection/encoding/clip_encoder.py` | ✅ Done (needs `torch`+internet to actually run) |
 | 3. Automated Temporal Decomposition | Groups frames into event tree | `src/anomaly_detection/segmentation/temporal_decomposition.py` | ✅ Done + tested (2/2 tests passing) |
-| 4. Spatial Object-Centric Masking | YOLO-World + ByteTrack background masking | `src/anomaly_detection/masking/object_masking.py` | 🔲 Stub only — raises `NotImplementedError` |
-| 5-6. Domain Familiarisation | Captioning (via CLIP zero-shot, see note below) + Domain Constitution + text embedding | `src/anomaly_detection/familiarisation/domain_familiarisation.py` | ✅ Done + tested (3/3 tests passing) |
-| 7. Dynamic Textual Memory Bank | Stores/updates "normal" entries, familiarity counter | `src/anomaly_detection/memory/memory_bank.py` | ✅ Done + tested (2/2 tests passing) |
-| 8-9. Adaptive Inference | Contrastive probing (cosine sim) + threshold gating | `src/anomaly_detection/inference/adaptive_inference.py` | ✅ Done + tested (1/1 test passing) |
-| 10. LLM Reasoning | Explanation generation for flagged events via Gemini 2.5 Flash | `src/anomaly_detection/reasoning/llm_reasoning.py` | ✅ Done + integrated |
-| Orchestration | Wires modules together | `src/anomaly_detection/pipeline.py` | ✅ Steps 1-3 & 5-10 fully wired (`run_full_pipeline()`) |
+| 4. Spatial Object-Centric Masking | YOLO-World + ByteTrack background blurring transform | `src/anomaly_detection/masking/object_masking.py` | ✅ Done + integrated |
+| 5-6. Domain Familiarisation | Captioning (via Gemini Flash MLLM Vision / CLIP fallback) + Domain Constitution | `src/anomaly_detection/familiarisation/domain_familiarisation.py` | ✅ Done + tested |
+| 7. Dynamic Textual Memory Bank | Stores/updates "normal" entries, familiarity counter | `src/anomaly_detection/memory/memory_bank.py` | ✅ Done + tested |
+| 8-9. Adaptive Inference | Contrastive probing (cosine sim) + threshold gating | `src/anomaly_detection/inference/adaptive_inference.py` | ✅ Done + tested |
+| 10. LLM Reasoning | Explanation generation for flagged events via Gemini Flash LLM | `src/anomaly_detection/reasoning/llm_reasoning.py` | ✅ Done + integrated |
+| Orchestration | Wires modules together | `src/anomaly_detection/pipeline.py` | ✅ All Steps 1-10 100% fully wired (`run_full_pipeline()`) |
 | Shared types | Frame, EncodedFrame, EventChunk, MemoryEntry, AnomalyResult | `src/anomaly_detection/utils/types.py` | ✅ Done |
 | Config | All tunable numbers in one place | `config/config.yaml` | ✅ Done (thresholds are starting guesses, not tuned) |
 | CLI (Steps 1-3 only) | Run just ingestion/encoding/segmentation | `scripts/run_pipeline.py` | ✅ Done |

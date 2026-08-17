@@ -27,4 +27,7 @@ memory:
   promotion_repeat_count: 3   # Step 7: repetitions needed before auto-promoting to "normal"
 
 inference:
-  anomaly_threshold: 0.80     # Steps 8-9: threshold for flagging anomalies (paper default alpha=0.25 -> 0.80 score cutoff)
+  anomaly_threshold: 0.78     # Steps 8-9: threshold for flagging anomalies.
+                               # Lowered from 0.80 → 0.75 because within a single domain
+                               # (e.g. traffic), CLIP embeddings cluster tightly and even
+                               # genuine anomalies (accidents, falls) can score below 0.80.

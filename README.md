@@ -29,18 +29,19 @@ anomaly_detection/
 │       ├── segmentation/
 │       │   └── temporal_decomposition.py  ← Step 3: GEBD + HGTree        [DONE]
 │       ├── masking/
-│       │   └── object_masking.py   ← Step 4: YOLO-World + ByteTrack       [STUB]
+│       │   └── object_masking.py   ← Step 4: YOLO-World + ByteTrack       [DONE]
 │       ├── familiarisation/
-│       │   └── domain_familiarisation.py  ← Steps 5-6: Domain Constitution [STUB]
+│       │   └── domain_familiarisation.py  ← Steps 5-6: Domain Constitution [DONE]
 │       ├── memory/
-│       │   └── memory_bank.py      ← Step 7: Dynamic Textual Memory Bank  [STUB]
+│       │   └── memory_bank.py      ← Step 7: Dynamic Textual Memory Bank  [DONE]
 │       ├── inference/
-│       │   └── adaptive_inference.py  ← Steps 8-9: Similarity + Threshold [STUB]
+│       │   └── adaptive_inference.py  ← Steps 8-9: Similarity + Threshold [DONE]
 │       ├── reasoning/
-│       │   └── llm_reasoning.py    ← Step 10: LLM Explanation             [STUB]
+│       │   └── llm_reasoning.py    ← Step 10: LLM Explanation             [DONE]
 │       └── pipeline.py             ← orchestrates all of the above
 ├── scripts/
-│   └── run_pipeline.py             ← CLI entry point
+│   ├── run_pipeline.py             ← CLI (Steps 1-3 only)
+│   └── run_full_pipeline.py        ← CLI (Full Steps 1-10)
 ├── tests/
 │   ├── conftest.py                 ← makes imports work without installing
 │   └── test_temporal_decomposition.py  ← passes right now, no downloads needed
@@ -70,12 +71,12 @@ pip install -e .
 The first run downloads CLIP weights (~600MB) via `transformers`, so you need
 internet access at least once.
 
-## Run it (Steps 1–3, currently working)
+## Run it (Full Pipeline, Steps 1-10)
 
 ```bash
-python scripts/run_pipeline.py --video path/to/your/video.mp4
+python scripts/run_full_pipeline.py --video path/to/your/video.mp4
 # or:
-python scripts/run_pipeline.py --webcam
+python scripts/run_full_pipeline.py --webcam
 ```
 
 ## Run tests (no downloads needed)
@@ -94,11 +95,11 @@ pytest tests/
   implementations are research code with fiddly setup. This heuristic is
   fully functional right now and can be swapped later without touching
   any other module (`build_event_tree()`'s signature only needs a list of
-  `EncodedFrame`).
+    `EncodedFrame`).
+- **Domain Familiarisation / Captioning (Steps 5-6)** uses the Gemini Multimodal API if an API key is provided, otherwise it falls back to zero-shot CLIP classification against a predefined list of labels.
+- **LLM Reasoning (Step 10)** uses the Gemini API if a key is provided to generate natural language explanations.
 
-Everything else follows the paper's design as closely as possible — see
-each stub module's docstring for the exact planned interface before you
-implement it.
+Everything else follows the paper's design as closely as possible.
 
 ## Tuning
 

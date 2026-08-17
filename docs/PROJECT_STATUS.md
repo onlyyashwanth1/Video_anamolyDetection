@@ -40,10 +40,7 @@ handing this to another AI (or a teammate) painless.
 
 ~~Familiarisation (5-6) → Memory Bank (7) → Adaptive Inference (8-9)~~ **DONE.**
 
-Remaining: **Masking (4)** → **LLM Reasoning (10)**
+~~Masking (4) → LLM Reasoning (10)~~ **DONE.**
 
-We deliberately built 5-9 before 4, since 4 (masking) only improves accuracy on an
-already-working detector, while 5-9 is what makes the system detect anomalies at
-all. As of now, the project has a genuinely working end-to-end anomaly detector
-(minus background masking and LLM-generated explanations) - run it with
+All modules for the 10-step pipeline have been implemented. As of now, the project has a genuinely working end-to-end anomaly detector including background masking and LLM-generated explanations - run it with
 `scripts/run_full_pipeline.py`.

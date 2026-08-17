@@ -14,7 +14,7 @@ from anomaly_detection.utils.types import Frame
 
 
 class SpatialObjectMasker:
-    def __init__(self, model_name: str = "yolov8n-world.pt", custom_classes: Optional[List[str]] = None, blur_kernel: tuple = (51, 51)):
+    def __init__(self, model_name: str = "yolov8s-worldv2.pt", custom_classes: Optional[List[str]] = None, blur_kernel: tuple = (51, 51)):
         self.blur_kernel = blur_kernel
         try:
             from ultralytics import YOLO

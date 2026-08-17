@@ -34,13 +34,13 @@ def explain_anomaly(result: AnomalyResult, notebook: List[str], context: str = "
         "Output a concise 1-2 sentence human-friendly natural language explanation detailing why this event is anomalous."
     )
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if api_key:
         try:
             from google import genai
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
-                model="gemini-flash-latest",
+                model="gemini-3.6-flash",
                 contents=prompt,
             )
             result.explanation = response.text.strip()

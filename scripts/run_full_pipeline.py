@@ -10,11 +10,15 @@ Usage:
 
 Public/shared Google Drive links are downloaded to a temporary local file,
 processed by the existing pipeline, and deleted automatically afterward.
+
+Results are printed to the terminal and saved to a text file.
 """
 
 import argparse
 import os
 import sys
+from contextlib import redirect_stdout
+from io import StringIO
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -47,8 +51,27 @@ def print_results(results):
             print(f"           Explanation: {r.explanation}")
 
 
+def build_output(notebook, memory_bank, results, source):
+    """Build the complete human-readable pipeline report."""
+    buffer = StringIO()
+    with redirect_stdout(buffer):
+        print("=" * 72)
+        print("VIDEO ANOMALY DETECTION - PIPELINE RESULTS")
+        print("=" * 72)
+        print(f"Source: {source}")
+        print_notebook(notebook)
+        print_results(results)
+        print(f"\n=== Final Memory Bank ({len(memory_bank)} entries) ===")
+        print(memory_bank)
+        print("\n" + "=" * 72)
+        print("END OF REPORT")
+        print("=" * 72)
+    return buffer.getvalue()
+
+
 def main():
     default_config = os.path.join(os.path.dirname(__file__), "..", "config", "config.yaml")
+    default_output = os.path.join(os.path.dirname(__file__), "..", "outputs", "pipeline_results.txt")
 
     parser = argparse.ArgumentParser(description="Run the full Steps 1-10 pipeline")
     parser.add_argument(
@@ -59,6 +82,12 @@ def main():
     )
     parser.add_argument("--webcam", action="store_true", help="Use the default webcam instead")
     parser.add_argument("--config", type=str, default=default_config)
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=default_output,
+        help="Path for the text output report (default: outputs/pipeline_results.txt)",
+    )
     args = parser.parse_args()
 
     source = 0 if args.webcam else args.video
@@ -75,11 +104,20 @@ def main():
         print(f"Running full pipeline (Steps 1-10) on source: {source}")
         notebook, memory_bank, results = run_full_pipeline(resolved_source, config)
 
+        # Keep the existing terminal output.
         print_notebook(notebook)
         print_results(results)
-
         print(f"\n=== Final Memory Bank ({len(memory_bank)} entries) ===")
         print(memory_bank)
+
+        # Save a complete report separately.
+        report = build_output(notebook, memory_bank, results, source)
+        output_path = os.path.abspath(os.path.expanduser(args.output))
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(report)
+
+        print(f"\nResults saved to: {output_path}")
     finally:
         if temporary_path:
             cleanup_video_source(temporary_path)

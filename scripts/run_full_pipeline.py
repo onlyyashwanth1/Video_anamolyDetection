@@ -113,7 +113,9 @@ def main():
         # Save a complete report separately.
         report = build_output(notebook, memory_bank, results, source)
         output_path = os.path.abspath(os.path.expanduser(args.output))
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(report)
 

@@ -10,37 +10,26 @@ fingerprints.
 
 IMPLEMENTATION NOTE:
 The paper calls for a full Multimodal LLM (LLaVA/GPT-4o) to freely
-caption each event. This implementation uses a local multimodal LLM
-through Ollama, currently configured to use:
+caption each event. This implementation uses a local Gemma 4 31B
+model loaded directly via transformers (see local_gemma.py) -
+no external server required.
 
-    gemma4:31b-it-q8_0
-
-If Ollama/Gemma fails, caption_event() falls back to CLIP zero-shot
-classification using the candidate descriptions below.
-
-Swapping the VLM model only requires changing OLLAMA_VLM_MODEL.
-build_domain_constitution() and embed_constitution() do not need
-to change.
+If the local model fails, caption_event() falls back to CLIP
+zero-shot classification using the candidate descriptions below.
 """
 
 from collections import Counter
 from typing import List
 
-import io
-import os
-
 from PIL import Image
 
 from anomaly_detection.utils.types import EventChunk, MemoryEntry
+from anomaly_detection.reasoning import local_gemma
 
 
 # ------------------------------------------------------------------
 # Configuration
 # ------------------------------------------------------------------
-
-# Local multimodal LLM served through Ollama.
-OLLAMA_VLM_MODEL = "gemma4:31b-it-q8_0"
-
 
 # A starting vocabulary of plausible "normal" activities.
 # Extend this list for your specific deployment domain
@@ -70,11 +59,11 @@ def caption_event(
     raw_frames: List = None,
 ) -> str:
     """
-    Captures the main activity in an event using a local multimodal LLM
-    through Ollama (Gemma 4 31B).
+    Captures the main activity in an event using a local Gemma 4 31B
+    model (loaded via transformers, see local_gemma.py).
 
-    If Ollama/Gemma fails or no raw frame is available, falls back to
-    CLIP zero-shot classification using candidate_labels.
+    If the local model fails or no raw frame is available, falls back
+    to CLIP zero-shot classification using candidate_labels.
 
     Parameters
     ----------
@@ -101,13 +90,11 @@ def caption_event(
     """
 
     # --------------------------------------------------------------
-    # Primary method: Gemma 4 31B through Ollama
+    # Primary method: local Gemma 4 31B
     # --------------------------------------------------------------
 
     if raw_frames and len(event.frame_indices) > 0:
         try:
-            import ollama
-
             # Use the middle frame as the representative event frame.
             mid_idx = event.frame_indices[len(event.frame_indices) // 2]
 
@@ -135,13 +122,6 @@ def caption_event(
                 pil_img = Image.fromarray(target_frame.image)
 
                 # --------------------------------------------------
-                # Encode image as JPEG bytes for Ollama
-                # --------------------------------------------------
-                img_byte_arr = io.BytesIO()
-                pil_img.save(img_byte_arr, format="JPEG")
-                img_bytes = img_byte_arr.getvalue()
-
-                # --------------------------------------------------
                 # Prompt Gemma
                 # --------------------------------------------------
                 prompt = (
@@ -154,31 +134,15 @@ def caption_event(
                     "Do not use bullet points."
                 )
 
-                response = ollama.generate(
-                    model=OLLAMA_VLM_MODEL,
-                    prompt=prompt,
-                    images=[img_bytes],
-                )
-
-                # Ollama normally returns a dictionary containing
-                # the generated text in "response".
-                caption = (
-                    response.get("response", "")
-                    .strip()
-                    .replace("\n", " ")
-                    .lower()
-                )
+                caption = local_gemma.generate_caption(pil_img, prompt)
+                caption = caption.strip().replace("\n", " ").lower()
 
                 if caption:
                     return caption
 
         except Exception as e:
-            print(
-                f"[Ollama VLM Note] Failed with "
-                f"'{OLLAMA_VLM_MODEL}': {e}"
-            )
-            print("[Ollama VLM Note] Falling back to CLIP.")
-
+            print(f"[Local Gemma VLM Note] Failed: {e}")
+            print("[Local Gemma VLM Note] Falling back to CLIP.")
 
     # --------------------------------------------------------------
     # Fallback: CLIP zero-shot classification

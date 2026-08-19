@@ -7,19 +7,14 @@ a frozen Multimodal/LLM reviews a flagged event's description, the full
 outputs a natural-language explanation of the flag.
 
 Implementation:
-    Uses local Gemma 4 31B through Ollama.
+    Uses local Gemma 4 31B loaded directly via transformers
+    (see local_gemma.py). No external server required.
 """
 
 from typing import List
 
 from anomaly_detection.utils.types import AnomalyResult
-
-
-# ------------------------------------------------------------------
-# Configuration
-# ------------------------------------------------------------------
-
-OLLAMA_LLM_MODEL = "gemma4:31b-it-q8_0"
+from anomaly_detection.reasoning import local_gemma
 
 
 # ------------------------------------------------------------------
@@ -39,7 +34,7 @@ def explain_anomaly(
         - anomaly score
         - surrounding temporal context
 
-    Sends the prompt to Gemma 4 31B through Ollama and returns the
+    Sends the prompt to the local Gemma 4 31B model and returns the
     result with `.explanation` populated.
 
     Parameters
@@ -117,22 +112,11 @@ def explain_anomaly(
     )
 
     # --------------------------------------------------------------
-    # Gemma 4 31B via Ollama
+    # Gemma 4 31B via local transformers
     # --------------------------------------------------------------
 
     try:
-        import ollama
-
-        response = ollama.generate(
-            model=OLLAMA_LLM_MODEL,
-            prompt=prompt,
-        )
-
-        explanation = (
-            response.get("response", "")
-            .strip()
-            .replace("\n", " ")
-        )
+        explanation = local_gemma.generate_text(prompt).replace("\n", " ").strip()
 
         if explanation:
             result.explanation = explanation
@@ -149,7 +133,6 @@ def explain_anomaly(
             f"Action '{event_desc}' was flagged as anomalous relative "
             f"to the established domain constitution "
             f"(anomaly score: {result.anomaly_score:.3f}). "
-            f"[Ollama LLM Note: {e}]"
+            f"[Local Gemma Note: {e}]"
         )
-
         return result

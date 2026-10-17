@@ -14,7 +14,6 @@ Implementation:
 from typing import List
 
 from anomaly_detection.utils.types import AnomalyResult
-from anomaly_detection.reasoning import local_gemma
 
 
 # ------------------------------------------------------------------
@@ -25,6 +24,7 @@ def explain_anomaly(
     result: AnomalyResult,
     notebook: List[str],
     context: str = "",
+    strict: bool = False,
 ) -> AnomalyResult:
     """
     Builds a deduction prompt from:
@@ -101,14 +101,12 @@ def explain_anomaly(
 
         "Instructions:\n"
         "1. Compare the flagged event against the normal activity rules.\n"
-        "2. Use the anomaly score only as supporting evidence; do not "
-        "treat it as proof by itself.\n"
+        "2. Use the anomaly score only as supporting evidence; do not treat it as proof by itself.\n"
         "3. Consider the surrounding temporal context when provided.\n"
-        "4. Explain the specific mismatch between the event and normal "
-        "behavior.\n"
-        "5. If the event does not clearly violate the normal rules, say "
-        "that the evidence is insufficient rather than inventing a reason.\n"
-        "6. Output only a concise 1-2 sentence explanation.\n"
+        "4. Decide if the event is a true anomaly (violates the normal rules) or normal (fits/aligns with one or more normal rules).\n"
+        "5. Output your response in the following exact format:\n"
+        "VERDICT: [ANOMALY or NORMAL]\n"
+        "EXPLANATION: [A concise 1-2 sentence explanation of your decision. If VERDICT is NORMAL, explain that the evidence is insufficient to justify an anomaly or that the event aligns with normal behavior.]\n"
     )
 
     # --------------------------------------------------------------
@@ -116,7 +114,37 @@ def explain_anomaly(
     # --------------------------------------------------------------
 
     try:
-        explanation = local_gemma.generate_text(prompt).replace("\n", " ").strip()
+        from anomaly_detection.reasoning import local_gemma
+        response = local_gemma.generate_text(prompt).strip()
+        
+        verdict = "ANOMALY"
+        explanation = ""
+
+        if "VERDICT:" in response:
+            lines = response.split("\n")
+            for line in lines:
+                if line.startswith("VERDICT:"):
+                    verdict_str = line.replace("VERDICT:", "").strip().upper()
+                    if "NORMAL" in verdict_str:
+                        verdict = "NORMAL"
+                    elif "ANOMALY" in verdict_str:
+                        verdict = "ANOMALY"
+                elif line.startswith("EXPLANATION:"):
+                    explanation = line.replace("EXPLANATION:", "").strip()
+            
+            if not explanation and "EXPLANATION:" in response:
+                parts = response.split("EXPLANATION:")
+                if len(parts) > 1:
+                    explanation = parts[1].replace("\n", " ").strip()
+
+        # Fallback if format is not strictly followed
+        if not explanation:
+            explanation = response.replace("\n", " ").strip()
+            if any(phrase in explanation.lower() for phrase in ["insufficient evidence", "no evidence", "unsupported", "normal behavior", "aligns with"]):
+                verdict = "NORMAL"
+
+        if verdict == "NORMAL":
+            result.is_anomaly = False
 
         if explanation:
             result.explanation = explanation
@@ -129,6 +157,8 @@ def explain_anomaly(
         return result
 
     except Exception as e:
+        if strict:
+            raise RuntimeError("Gemma anomaly review failed") from e
         result.explanation = (
             f"Action '{event_desc}' was flagged as anomalous relative "
             f"to the established domain constitution "

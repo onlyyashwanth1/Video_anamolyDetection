@@ -1,0 +1,61 @@
+"""Shared video-to-event processing for demos, memory construction and evaluation."""
+
+from dataclasses import dataclass
+
+from anomaly_detection.encoding.multi_scale_encoder import MultiScaleClipEncoder
+from anomaly_detection.familiarisation.domain_familiarisation import caption_event
+from anomaly_detection.ingestion.video_stream import VideoStream
+from anomaly_detection.masking.object_masking import SpatialObjectMasker
+from anomaly_detection.segmentation.temporal_decomposition import build_event_tree
+
+
+@dataclass
+class ProcessedVideo:
+    events: list
+    frames: list
+    encoded_frames: list
+    fps: float
+    frame_count: int
+
+
+class VideoEventProcessor:
+    """Reuse pretrained models, but reset tracking at each video boundary.
+
+    Mean-pooled CLIP features preserve image/text alignment. The experimental
+    randomly initialized temporal transformer is intentionally not applied.
+    """
+
+    def __init__(self, config, strict=False):
+        self.config = config
+        self.strict = strict
+        self.encoder = MultiScaleClipEncoder(model_name=config["encoder"]["model_name"])
+        self.masker = SpatialObjectMasker(strict=strict)
+
+    def process(self, source, caption=True):
+        import cv2
+
+        stream = VideoStream(source, target_fps=self.config["video"]["target_fps"])
+        native_fps = stream.cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(stream.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if self.strict and (native_fps <= 0 or frame_count <= 0):
+            stream.close()
+            raise ValueError(f"Invalid video metadata: {source}")
+        try:
+            frames = list(stream.frames())
+        finally:
+            stream.close()
+        if not frames:
+            raise ValueError(f"No frames decoded: {source}")
+        if self.strict:
+            expected = (frame_count + stream.frame_interval - 1) // stream.frame_interval
+            if len(frames) != expected:
+                raise ValueError(f"Incomplete video decode: {source} ({len(frames)}/{expected} samples)")
+        self.masker.reset_tracking()
+        encoded = [self.encoder.encode_frame(self.masker.mask_frame(f)) for f in frames]
+        tree = build_event_tree(encoded, **self.config["segmentation"])
+        if caption:
+            for event in tree:
+                event.description = caption_event(
+                    event, self.encoder, raw_frames=frames, strict=self.strict,
+                )
+        return ProcessedVideo(tree, frames, encoded, stream.native_fps, frame_count)

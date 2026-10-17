@@ -43,3 +43,8 @@ Thumbs.db
 
 # pytest cache
 .pytest_cache/
+
+*.pdf
+
+# Permanent generated artifacts stay on disk, outside version control.
+outputs

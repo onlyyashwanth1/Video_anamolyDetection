@@ -8,6 +8,12 @@ being trained on labeled data for that specific place.
 
 See `docs/PROJECT_STATUS.md` for exactly what's implemented vs. still a stub.
 
+UCF-Crime benchmarking with a permanent normal memory bank is described in
+[`docs/UCF_CRIME_EVALUATION.md`](docs/UCF_CRIME_EVALUATION.md). It uses separate
+normal-memory and test folders; GPU execution and evaluation verification are
+pending. Current captioning/reasoning uses local Gemma, superseding the Gemini
+description below. Demo and benchmark share mean-pooled multi-scale CLIP events.
+
 ## Folder structure
 
 ```

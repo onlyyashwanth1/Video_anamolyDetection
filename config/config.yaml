@@ -2,6 +2,7 @@
 # instead of being hardcoded across different files.
 
 video:
+  path: "/home/nverma/VADGEMMA/Datasets/UCF_Crime/Videos"
   target_fps: 1.0             # Step 1: how many frames/sec to sample
 
 encoder:
@@ -15,11 +16,11 @@ familiarisation:
   observation_window_frames: 500     # Steps 5-6: how many frames before alerting starts
                                        # (intended for long/continuous real deployments)
   observation_window_minutes: 10
-  observation_fraction: 0.4           # For short demo clips: use the first 40% of a
+  observation_fraction: 0.4            # For short demo clips: use the first 40% of a
                                        # video's top-level events to build the "normal"
-                                       # notebook, and treat the remaining 60% as new
+                                       # notebook, and treat the remaini  ng 60% as new
                                        # events to test for anomalies against it.
-  min_caption_occurrences: 1          # A caption must appear at least this many times
+  min_caption_occurrences: 1           # A caption must appear at least this many times
                                        # during familiarisation to be kept in the notebook.
                                        # Raise this for longer real deployments.
 
@@ -27,7 +28,20 @@ memory:
   promotion_repeat_count: 3   # Step 7: repetitions needed before auto-promoting to "normal"
 
 inference:
-  anomaly_threshold: 0.75     # Steps 8-9: threshold for flagging anomalies.
-                               # Lowered from 0.80 → 0.75 because within a single domain
-                               # (e.g. traffic), CLIP embeddings cluster tightly and even
-                               # genuine anomalies (accidents, falls) can score below 0.80.
+  anomaly_threshold: 0.50     # Steps 8-9: threshold for flagging anomalies.
+                               # After sigmoid amplification (center=0.55, steepness=25),
+                               # scores are well-spread in [0,1]. 0.50 is a natural midpoint.
+
+# Benchmarking uses every normal video and then every complete test video.
+# Relative artifact paths resolve from the project root.
+evaluation:
+  normal_dir: "/home/nverma/VADGEMMA/Datasets/UCF_Crime/Videos/Normal_Videos_event"
+  test_dir: "/home/nverma/VADGEMMA/Datasets/UCF_Crime/Videos/Testing_Video"
+  annotation_file: "/home/nverma/VADGEMMA/Datasets/UCF_Crime/Annotation/Temporal_Anomaly_Annotation_Five_FPS.txt"
+  # Example intervals reference native indices despite the annotation filename:
+  # Abuse030 ends at 1360, exceeding its ~258 frames if indexed at 5 FPS.
+  # Use numeric FPS only for genuinely resampled-frame annotation indices.
+  annotation_fps: "native"
+  memory_bank_path: "outputs/memory/ucf_crime_normal.npz"
+  output_dir: "outputs/ucf_crime_evaluation"
+  llm_review: false  # Score-only evaluation; Gemma event captioning remains enabled.

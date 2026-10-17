@@ -12,6 +12,7 @@ unmatched descriptions so they can eventually be promoted into permanent
 memory entries without ever retraining any model.
 """
 
+import pickle
 from typing import List, Optional, Tuple
 import numpy as np
 
@@ -25,6 +26,25 @@ class MemoryBank:
         self._unmatched_counts: dict = {}
         self._unmatched_embeddings: dict = {}
 
+    def save(self, path: str) -> None:
+        """Persist the memory bank to disk via pickle."""
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, path: str) -> "MemoryBank":
+        """Load a previously saved memory bank from disk."""
+        with open(path, "rb") as f:
+            return pickle.load(f)
+
+    def _build_index(self):
+        """Stack all entry embeddings into a matrix for fast vectorized lookup."""
+        if not hasattr(self, '_emb_matrix') or self._emb_matrix is None or len(self._emb_matrix) != len(self.entries):
+            if self.entries:
+                self._emb_matrix = np.stack([e.embedding for e in self.entries])  # (N, D)
+            else:
+                self._emb_matrix = None
+
     def best_match(self, embedding: np.ndarray) -> Tuple[Optional[MemoryEntry], float]:
         """
         Returns (closest MemoryEntry, similarity score). If the bank is
@@ -34,13 +54,30 @@ class MemoryBank:
         if not self.entries:
             return None, -1.0
 
-        best_entry, best_score = None, -1.0
-        for entry in self.entries:
-            score = float(np.dot(embedding, entry.embedding))  # both are normalized -> dot = cosine similarity
-            if score > best_score:
-                best_entry, best_score = entry, score
+        self._build_index()
+        sims = self._emb_matrix @ embedding  # (N,)
+        best_idx = int(np.argmax(sims))
+        return self.entries[best_idx], float(sims[best_idx])
 
-        return best_entry, best_score
+    def top_k_match(self, embedding: np.ndarray, k: int = 10) -> Tuple[Optional[MemoryEntry], float, float]:
+        """
+        Returns (best_entry, best_similarity, top_k_avg_similarity).
+        top_k_avg is the mean similarity of the K nearest entries.
+        Anomalous events will have a lower top-K average because they
+        won't cluster near many normal entries.
+        """
+        if not self.entries:
+            return None, -1.0, -1.0
+
+        self._build_index()
+        sims = self._emb_matrix @ embedding  # (N,)
+        actual_k = min(k, len(sims))
+        top_k_indices = np.argpartition(sims, -actual_k)[-actual_k:]
+        top_k_sims = sims[top_k_indices]
+        best_local = int(np.argmax(top_k_sims))
+        best_idx = top_k_indices[best_local]
+
+        return self.entries[best_idx], float(sims[best_idx]), float(np.mean(top_k_sims))
 
     def log_unmatched(self, description: str, embedding: np.ndarray) -> None:
         """Records an event that didn't match anything, for try_promote() to check later."""

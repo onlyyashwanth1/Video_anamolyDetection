@@ -14,7 +14,8 @@ from anomaly_detection.utils.types import Frame
 
 
 class SpatialObjectMasker:
-    def __init__(self, model_name: str = "yolov8s-worldv2.pt", custom_classes: Optional[List[str]] = None, blur_kernel: tuple = (51, 51)):
+    def __init__(self, model_name: str = "yolov8s-worldv2.pt", custom_classes: Optional[List[str]] = None, blur_kernel: tuple = (51, 51), strict: bool = False):
+        self.strict = strict
         self.blur_kernel = blur_kernel
         try:
             from ultralytics import YOLO
@@ -23,8 +24,17 @@ class SpatialObjectMasker:
                 self.model.set_classes(custom_classes)
             self.enabled = True
         except Exception as e:
+            if self.strict:
+                raise RuntimeError("YOLO-World initialization failed") from e
             print(f"Warning: Could not initialize YOLO-World ({e}). Falling back to unmasked frames.")
             self.enabled = False
+
+    def reset_tracking(self):
+        """Each video starts a new tracker sequence; detector weights are reused."""
+        if self.enabled:
+            predictor = getattr(self.model, "predictor", None)
+            for tracker in getattr(predictor, "trackers", []):
+                tracker.reset()
 
     def mask_frame(self, frame: Frame) -> Frame:
         """
@@ -36,7 +46,8 @@ class SpatialObjectMasker:
             return frame
 
         try:
-            results = self.model.track(frame.image, persist=True, tracker="bytetrack.yaml", verbose=False)
+            # Ultralytics numpy inputs use BGR; Frame stores RGB.
+            results = self.model.track(cv2.cvtColor(frame.image, cv2.COLOR_RGB2BGR), persist=True, tracker="bytetrack.yaml", verbose=False)
             if not results or len(results) == 0:
                 return frame
 
@@ -61,6 +72,8 @@ class SpatialObjectMasker:
                 image=masked_img
             )
         except Exception as e:
+            if self.strict:
+                raise RuntimeError(f"Object masking failed at frame {frame.frame_number}") from e
             return frame
 
 
@@ -76,4 +89,3 @@ def mask_frame(frame: Frame) -> Frame:
     if _masker_instance is None:
         _masker_instance = SpatialObjectMasker()
     return _masker_instance.mask_frame(frame)
-

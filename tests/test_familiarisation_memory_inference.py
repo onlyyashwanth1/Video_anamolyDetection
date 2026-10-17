@@ -136,6 +136,47 @@ def test_score_event_flags_anomaly_correctly():
           f"vs anomaly (score={weird_result.anomaly_score})")
 
 
+def test_explain_anomaly_gating():
+    import sys
+    from unittest.mock import MagicMock
+
+    # Setup mock local_gemma module to bypass torch/transformers dependencies
+    mock_local_gemma = MagicMock()
+    sys.modules["anomaly_detection.reasoning.local_gemma"] = mock_local_gemma
+    import anomaly_detection.reasoning
+    anomaly_detection.reasoning.local_gemma = mock_local_gemma
+
+    from anomaly_detection.reasoning.llm_reasoning import explain_anomaly
+    from anomaly_detection.utils.types import AnomalyResult
+
+    # Mock AnomalyResult that is initially flagged
+    event = make_event([0, 1])
+    event.description = "a white car drives on the highway"
+    result = AnomalyResult(event=event, anomaly_score=0.76, is_anomaly=True, closest_match="a car drives on the highway")
+
+    # Case 1: Gemma says NORMAL verdict
+    mock_local_gemma.generate_text.return_value = "VERDICT: NORMAL\nEXPLANATION: This aligns with normal rules."
+    res = explain_anomaly(result, ["a car drives on the highway"])
+    assert res.is_anomaly is False
+    assert "This aligns with normal rules." in res.explanation
+
+    # Case 2: Gemma says ANOMALY verdict
+    result2 = AnomalyResult(event=event, anomaly_score=0.76, is_anomaly=True, closest_match="a car drives on the highway")
+    mock_local_gemma.generate_text.return_value = "VERDICT: ANOMALY\nEXPLANATION: The car is driving on fire."
+    res = explain_anomaly(result2, ["a car drives on the highway"])
+    assert res.is_anomaly is True
+    assert "The car is driving on fire." in res.explanation
+
+    # Case 3: Gemma outputs fallback explanation with "insufficient evidence"
+    result3 = AnomalyResult(event=event, anomaly_score=0.76, is_anomaly=True, closest_match="a car drives on the highway")
+    mock_local_gemma.generate_text.return_value = "There is insufficient evidence to justify an anomaly."
+    res = explain_anomaly(result3, ["a car drives on the highway"])
+    assert res.is_anomaly is False
+    assert "insufficient evidence" in res.explanation.lower()
+
+    print("PASSED: explain_anomaly verdict gating logic verified via mocks")
+
+
 if __name__ == "__main__":
     test_caption_event_picks_closest_label()
     test_build_domain_constitution_dedupes_and_filters()
@@ -143,4 +184,5 @@ if __name__ == "__main__":
     test_memory_bank_best_match_and_empty_case()
     test_memory_bank_promotion_requires_repeats()
     test_score_event_flags_anomaly_correctly()
+    test_explain_anomaly_gating()
     print("\nAll tests passed.")

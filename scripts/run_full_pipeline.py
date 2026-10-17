@@ -69,6 +69,29 @@ def build_output(notebook, memory_bank, results, source):
     return buffer.getvalue()
 
 
+def format_timestamp(seconds: float) -> str:
+    """Format seconds into SRT timestamp format: HH:MM:SS,mmm"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millisecs = int(round((seconds - int(seconds)) * 1000))
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millisecs:03d}"
+
+
+def export_to_srt(results, output_srt_path):
+    """Generate an SRT subtitle file from the anomaly results."""
+    with open(output_srt_path, "w", encoding="utf-8") as f:
+        for i, r in enumerate(results, 1):
+            start_ts = format_timestamp(r.event.start_time)
+            end_ts = format_timestamp(r.event.end_time)
+            f.write(f"{i}\n")
+            f.write(f"{start_ts} --> {end_ts}\n")
+            
+            flag = "ANOMALY" if r.is_anomaly else "NORMAL"
+            f.write(f"[{flag}] Score: {r.anomaly_score:.3f}\n")
+            f.write(f"Caption: {r.event.description}\n\n")
+
+
 def main():
     default_config = os.path.join(os.path.dirname(__file__), "..", "config", "config.yaml")
     default_output = os.path.join(os.path.dirname(__file__), "..", "outputs", "pipeline_results.txt")
@@ -88,6 +111,8 @@ def main():
         default=default_output,
         help="Path for the text output report (default: outputs/pipeline_results.txt)",
     )
+    parser.add_argument("--srt", action="store_true", default=True, help="Generate an SRT subtitle file alongside the text report")
+    parser.add_argument("--burn", action="store_true", help="Use FFmpeg to burn the SRT subtitles directly into a new output video")
     args = parser.parse_args()
 
     source = 0 if args.webcam else args.video
@@ -118,8 +143,26 @@ def main():
             os.makedirs(output_dir, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(report)
-
         print(f"\nResults saved to: {output_path}")
+
+        if args.srt and results:
+            srt_path = os.path.splitext(output_path)[0] + ".srt"
+            export_to_srt(results, srt_path)
+            print(f"Subtitles saved to: {srt_path}")
+            
+            if args.burn and source != 0:
+                print("Burning subtitles into video via FFmpeg...")
+                video_out = os.path.splitext(output_path)[0] + "_captioned.mp4"
+                
+                # FFmpeg requires escaping colons/slashes in the subtitle path
+                escaped_srt = srt_path.replace("\\", "/").replace(":", "\\:")
+                
+                cmd = f'ffmpeg -y -i "{resolved_source}" -vf "subtitles={escaped_srt}:force_style=\'FontSize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2\'" -c:a copy "{video_out}" -loglevel error'
+                if os.system(cmd) == 0:
+                    print(f"Successfully created captioned video: {video_out}")
+                else:
+                    print("Failed to run FFmpeg. Make sure ffmpeg is installed.")
+
     finally:
         if temporary_path:
             cleanup_video_source(temporary_path)

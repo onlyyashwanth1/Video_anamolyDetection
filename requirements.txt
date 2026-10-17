@@ -9,3 +9,7 @@ ultralytics
 ollama
 google-genai
 gdown
+torchvision
+accelerate
+scikit-learn
+matplotlib

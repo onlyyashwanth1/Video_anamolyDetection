@@ -1,5 +1,15 @@
 # Project Status — Paper Section → Code Mapping
 
+## UCF-Crime benchmark update
+
+Modular whole-video evaluation and permanent normal-memory storage are now
+implemented. See [UCF_CRIME_EVALUATION.md](UCF_CRIME_EVALUATION.md) for the current
+protocol, modules, artifact format and known split discrepancy. Evaluation
+verification and GPU execution are pending; the historical completion/test
+claims below do not validate this new path. Current model reasoning uses local
+Gemma. The shared processor uses mean-pooled multi-scale CLIP features and does
+not apply the experimental randomly initialized temporal transformer.
+
 This table is the single source of truth for "what does this file implement,
 and is it done." Keep it updated as you build each module — it's what makes
 handing this to another AI (or a teammate) painless.

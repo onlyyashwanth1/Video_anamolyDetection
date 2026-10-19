@@ -25,7 +25,7 @@ SCHEMA = 1
 
 def model_spec(config):
     """Versioned feature/caption contract; update when their semantics change."""
-    return {
+    spec = {
         "implementation": "multiscale-mean-clip_event-mean_gemma_v1",
         "encoder": config["encoder"], "video_target_fps": config["video"]["target_fps"],
         "segmentation": config["segmentation"],
@@ -34,6 +34,11 @@ def model_spec(config):
         "masking": "yolov8s-worldv2.pt/bytetrack/blur51",
         "strict_models": True,
     }
+    if (config.get("temporal", {}).get("mode", "events") != "events"
+            or config.get("captioning", {}).get("mode", "middle_frame") != "middle_frame"):
+        spec.update(implementation="window_temporal_caption_v2",
+                    temporal=config.get("temporal", {}), captioning=config.get("captioning", {}))
+    return spec
 
 
 def save_bank(path, bank, metadata):

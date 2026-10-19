@@ -128,3 +128,25 @@ def expand_events(events, values, frame_count):
     for start, stop, value in zip(starts, starts[1:] + [frame_count], values):
         result[start:stop] = value
     return result
+
+
+def expand_windows(events, values, frame_count):
+    """Average overlapping window values on the original frame grid."""
+    values = np.asarray(values, dtype=float)
+    if (not events or values.shape != (len(events),) or frame_count <= 0
+            or not np.isfinite(values).all()):
+        raise ValueError("Expected aligned windows and finite scalar scores")
+    sums = np.zeros(frame_count + 1, dtype=float)
+    counts = np.zeros(frame_count + 1, dtype=np.int64)
+    for event, value in zip(events, values):
+        start, stop = event.start_frame, event.stop_frame
+        if stop is None or not 0 <= start < stop <= frame_count:
+            raise ValueError("Invalid exclusive window boundary")
+        sums[start] += value
+        sums[stop] -= value
+        counts[start] += 1
+        counts[stop] -= 1
+    coverage = np.cumsum(counts[:-1])
+    if np.any(coverage == 0):
+        raise ValueError("Windows leave uncovered video frames")
+    return np.cumsum(sums[:-1]) / coverage

@@ -23,7 +23,7 @@ def _sigmoid_amplify(raw_score: float, center: float = 0.55, steepness: float = 
 
 
 def score_event(event: EventChunk, memory_bank, threshold: float, encoder=None,
-                top_k: int = 10) -> AnomalyResult:
+                top_k: int = 10, action_scorer=None, settings=None) -> AnomalyResult:
     """
     Enhanced Dual-Probe Scoring with Top-K and Sigmoid Amplification:
 
@@ -65,14 +65,31 @@ def score_event(event: EventChunk, memory_bank, threshold: float, encoder=None,
 
     # --- Sigmoid amplification to spread scores ---
     anomaly_score = _sigmoid_amplify(fused_raw, center=0.55, steepness=25.0)
+    components = {"memory_score": anomaly_score, "memory_raw": fused_raw,
+                  "memory_image_raw": img_raw, "memory_text_raw": txt_raw}
+    settings = settings or {}
+    mode = settings.get("scoring_mode", "memory")
+    if mode not in {"memory", "action", "memory_plus_action"}:
+        raise ValueError(f"Unknown scoring mode: {mode}")
+    if mode != "memory":
+        if action_scorer is None:
+            raise ValueError("Action scoring requires an ActionScorer")
+        components.update(action_scorer.score(event))
+        weight = float(settings.get("action_weight", 0.5))
+        if not 0 <= weight <= 1:
+            raise ValueError("action_weight must be in [0, 1]")
+        anomaly_score = (components["action_score"] if mode == "action" else
+                         (1 - weight) * anomaly_score + weight * components["action_score"])
+    components["combined_score"] = anomaly_score
 
     best_entry = img_entry if img_raw >= txt_raw else txt_entry
     is_anomaly = anomaly_score > threshold
 
     return AnomalyResult(
         event=event,
-        anomaly_score=round(anomaly_score, 4),
+        anomaly_score=anomaly_score,
         is_anomaly=is_anomaly,
         closest_match=best_entry.text if best_entry else None,
+        component_scores=components,
     )
 

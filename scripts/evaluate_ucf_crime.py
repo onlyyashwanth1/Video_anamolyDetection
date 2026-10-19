@@ -49,7 +49,9 @@ def main(dataset="UCF-Crime"):
                         annotation_file=str(root / 'annotations.txt'),
                         annotation_fps='native', llm_review=False,
                         annotation_source_indices='zero-based inclusive',
-                        memory_bank_path='outputs/memory/xd_violence_normal.npz',
+                        memory_bank_path=('outputs/memory/xd_violence_windows_v2.npz'
+                                          if config.get('temporal', {}).get('mode') == 'sliding_windows'
+                                          else 'outputs/memory/xd_violence_normal.npz'),
                         output_dir='outputs/xd_violence_evaluation')
 
     def configured_path(argument, key):

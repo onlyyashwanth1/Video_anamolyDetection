@@ -43,6 +43,7 @@ class EventChunk:
     description: Optional[str] = None  # filled in later by familiarisation/reasoning steps
     average_embedding: Optional[np.ndarray] = None  # mean CLIP fingerprint for the whole event,
                                                        # set by segmentation/temporal_decomposition.py
+    stop_frame: Optional[int] = None  # exclusive native-frame boundary for windows
 
     def __repr__(self):
         return (f"EventChunk(frames {self.start_frame}-{self.end_frame}, "
@@ -74,3 +75,4 @@ class AnomalyResult:
     is_anomaly: bool
     closest_match: Optional[str]
     explanation: Optional[str] = None
+    component_scores: dict = field(default_factory=dict)

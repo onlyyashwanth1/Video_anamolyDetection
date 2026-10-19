@@ -8,6 +8,15 @@ video:
 encoder:
   model_name: "openai/clip-vit-large-patch14"   # Step 2 (768-dim vector space, paper & mentor spec)
 
+temporal:
+  mode: sliding_windows      # Use events for the old segmentation baseline.
+  window_seconds: 4.0
+  stride_seconds: 1.0
+
+captioning:
+  mode: frame_captions_then_summary  # Baseline: middle_frame
+  max_frames_per_window: 4
+
 segmentation:
   coarse_threshold: 0.90      # Step 3: similarity below this = new top-level event (tuned for ViT-L/14)
   fine_threshold: 0.95        # Step 3: similarity below this = new sub-event (tuned for ViT-L/14)
@@ -16,21 +25,36 @@ familiarisation:
   observation_window_frames: 500     # Steps 5-6: how many frames before alerting starts
                                        # (intended for long/continuous real deployments)
   observation_window_minutes: 10
-  observation_fraction: 0.4            # For short demo clips: use the first 40% of a
-                                       # video's top-level events to build the "normal"
-                                       # notebook, and treat the remaini  ng 60% as new
-                                       # events to test for anomalies against it.
+  observation_fraction: 0.4            # Demo: first 40% of video time is assumed normal.
+                                       # Windows crossing the boundary are excluded.
   min_caption_occurrences: 1           # A caption must appear at least this many times
                                        # during familiarisation to be kept in the notebook.
                                        # Raise this for longer real deployments.
 
 memory:
+  allow_anomaly_promotion: false  # Repeated anomaly alerts must not become normal automatically.
   promotion_repeat_count: 3   # Step 7: repetitions needed before auto-promoting to "normal"
 
 inference:
-  anomaly_threshold: 0.50     # Steps 8-9: threshold for flagging anomalies.
-                               # After sigmoid amplification (center=0.55, steepness=25),
-                               # scores are well-spread in [0,1]. 0.50 is a natural midpoint.
+  scoring_mode: memory_plus_action  # Alternatives: memory, action
+  action_weight: 0.5          # Experimental default; select on held-out validation data.
+  action:
+    temperature: 0.1         # Heuristic similarity scaling, NOT probability calibration.
+    normal_prompts:
+      - people talking peacefully
+      - people walking normally
+      - people playing sports normally
+      - vehicles moving normally on a road
+      - people carrying objects
+      - a quiet scene without dangerous activity
+    anomalous_prompts:
+      - a person punching or kicking another person
+      - a person firing a gun
+      - vehicles colliding in a road accident
+      - a fire or explosion
+      - a person smashing property
+      - a person forcibly taking another person's belongings
+  anomaly_threshold: 0.50     # Experimental alert cutoff; validate separately from AUC/AP.
 
 # Benchmarking uses every normal video and then every complete test video.
 # Relative artifact paths resolve from the project root.
@@ -42,6 +66,6 @@ evaluation:
   # Abuse030 ends at 1360, exceeding its ~258 frames if indexed at 5 FPS.
   # Use numeric FPS only for genuinely resampled-frame annotation indices.
   annotation_fps: "native"
-  memory_bank_path: "outputs/memory/ucf_crime_normal.npz"
+  memory_bank_path: "outputs/memory/ucf_crime_windows_v2.npz"
   output_dir: "outputs/ucf_crime_evaluation"
   llm_review: false  # Score-only evaluation; Gemma event captioning remains enabled.

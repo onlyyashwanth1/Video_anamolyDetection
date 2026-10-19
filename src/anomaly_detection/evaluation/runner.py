@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from anomaly_detection.evaluation.bank import file_digest
-from anomaly_detection.evaluation.dataset import NATIVE_END_TOLERANCE, expand_events, frame_labels, manifest
+from anomaly_detection.evaluation.dataset import NATIVE_END_TOLERANCE, expand_events, expand_windows, frame_labels, manifest
 from anomaly_detection.evaluation.metrics import compute_metrics, save_curves
 from anomaly_detection.inference.adaptive_inference import score_event
 from anomaly_detection.reasoning.llm_reasoning import explain_anomaly
@@ -33,6 +33,13 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
     review = settings.get("llm_review", True)
     annotation_fps = settings.get("annotation_fps", "native")
     constitution = [entry.text for entry in bank.entries]
+    inference = config["inference"]
+    action_scorer = None
+    if inference.get("scoring_mode", "memory") != "memory":
+        from anomaly_detection.inference.action_scoring import ActionScorer
+        action_scorer = ActionScorer(processor.encoder, inference.get("action", {}))
+    windows = config.get("temporal", {}).get("mode", "events") == "sliding_windows"
+    expand = expand_windows if windows else expand_events
     metadata = {
         "status": "running", "started_utc": datetime.now(timezone.utc).isoformat(),
         "config": config, "memory_path": str(Path(bank_path).resolve()),
@@ -42,7 +49,7 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
         "test_videos": manifest(test_videos), "annotation_fps": annotation_fps,
         "evaluation_grid": "all original video frames",
         "annotation_native_end_tolerance_frames": NATIVE_END_TOLERANCE,
-        "score_expansion": "event value held until next event start, including final tail",
+        "score_expansion": "mean of overlapping windows" if windows else "event value held until next event start, including final tail",
         "memory_updates_during_testing": False,
         "metric_protocol": "pooled frame-level ROC-AUC; fixed-threshold metrics; optional Gemma decisions",
     }
@@ -58,7 +65,8 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
             labels = frame_labels(annotations[name], video.frame_count, video.fps, annotation_fps)
             event_scores, decisions, event_records = [], [], []
             for event in video.events:
-                result = score_event(event, bank, threshold, encoder=processor.encoder)
+                result = score_event(event, bank, threshold, encoder=processor.encoder,
+                                     action_scorer=action_scorer, settings=inference)
                 # Use the saved continuous score consistently for threshold reporting.
                 result.is_anomaly = result.anomaly_score > threshold
                 raw_decision = result.is_anomaly
@@ -68,13 +76,15 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
                 decisions.append(result.is_anomaly)
                 event_records.append({
                     "start_frame": event.start_frame, "last_sample_frame": event.end_frame,
-                    "start_time": event.start_time, "caption": event.description,
+                    "start_time": event.start_time, "stop_frame": event.stop_frame,
+                    "caption": event.description, "components": result.component_scores,
                     "score": result.anomaly_score, "threshold_anomaly": raw_decision,
                     "final_anomaly": result.is_anomaly, "closest_match": result.closest_match,
                     "explanation": result.explanation,
                 })
-            scores = expand_events(video.events, np.asarray(event_scores, dtype=np.float32), video.frame_count)
-            reviewed = expand_events(video.events, np.asarray(decisions, dtype=np.uint8), video.frame_count)
+            scores = np.clip(expand(video.events, np.asarray(event_scores, dtype=float), video.frame_count), 0, 1)
+            reviewed = ((expand(video.events, np.asarray(decisions, dtype=float), video.frame_count) > 0.5)
+                        if review else scores > threshold).astype(np.uint8)
             per_video[name] = {"category": annotations[name].category,
                                **compute_metrics(labels, scores, threshold, reviewed if review else None)}
             np.savez_compressed(predictions / f"{name}.npz", scores=scores, labels=labels,

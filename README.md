@@ -4,6 +4,8 @@ The default pipeline now uses overlapping windows, temporal caption summaries,
 and action-aware scoring. See [window pipeline setup and comparisons](docs/WINDOW_PIPELINE.md).
 New memory artifacts must be built; the new defaults have not yet been benchmarked.
 
+For several GPUs on one machine, see the [resumable multi-GPU evaluator](docs/MULTI_GPU.md).
+
 A B.Tech project implementation of a training-free video anomaly detection
 system: no model is ever fine-tuned. Frozen, pretrained AI models (CLIP,
 and later YOLO-World/an LLM) are used as fixed tools, and the system learns

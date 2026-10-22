@@ -34,6 +34,10 @@ def model_spec(config):
         "masking": "yolov8s-worldv2.pt/bytetrack/blur51",
         "strict_models": True,
     }
+    from anomaly_detection.reasoning.ollama_runtime import caption_spec
+    ollama = caption_spec(config)
+    if ollama is not None:
+        spec["caption_model"] = ollama
     if (config.get("temporal", {}).get("mode", "events") != "events"
             or config.get("captioning", {}).get("mode", "middle_frame") != "middle_frame"):
         spec.update(implementation="window_temporal_caption_v2",

@@ -1,5 +1,8 @@
 # Single-machine multi-GPU evaluation
 
+For quantized Gemma through Ollama and execution that survives an SSH disconnect,
+see [UCF-Crime with Ollama in screen](UCF_OLLAMA_SCREEN.md).
+
 `scripts/evaluate_ucf_multi_gpu.py` uses one independent model replica per GPU.
 The original `evaluate_ucf_crime.py` and its defaults are unchanged. A running
 serial evaluation cannot join this queue or export its unfinished in-memory

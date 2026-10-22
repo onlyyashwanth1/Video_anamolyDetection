@@ -5,6 +5,7 @@ import argparse
 from datetime import datetime, timezone
 import logging
 import os
+import signal
 from pathlib import Path
 import sys
 
@@ -55,6 +56,8 @@ def main(dataset="UCF-Crime", argv=None):
     except ValueError as error:
         parser.error(str(error))
     config = yaml.safe_load(args.config.read_text())
+    from anomaly_detection.reasoning.ollama_runtime import resolve_model, ollama_servers
+    resolve_model(config)
     settings = config["evaluation"]
     settings["dataset"] = dataset
 
@@ -113,11 +116,18 @@ def main(dataset="UCF-Crime", argv=None):
         return
     # Avoid relative model/download paths changing with the launch directory.
     os.chdir(ROOT)
+    # Let managed servers and spawned workers clean up on screen/session shutdown.
+    def terminate(signum, frame):
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, terminate)
+    signal.signal(signal.SIGHUP, terminate)
     with cache_lock(cache_dir):
         jobs = prepare()
-        run_workers(devices, config, cache_dir, jobs, args.threads_per_worker)
-        finalize(devices[0], config, cache_dir, normal, testing, annotations, bank_path,
-                 annotation_path, output, args.stage, args.threads_per_worker)
+        with ollama_servers(devices, config, ROOT / f"outputs/ollama_logs/{prefix}/{stamp}"):
+            run_workers(devices, config, cache_dir, jobs, args.threads_per_worker)
+            finalize(devices[0], config, cache_dir, normal, testing, annotations, bank_path,
+                     annotation_path, output, args.stage, args.threads_per_worker)
     logging.info("Memory bank: %s", bank_path)
     if args.stage != "build-memory":
         logging.info("Evaluation results: %s", output)

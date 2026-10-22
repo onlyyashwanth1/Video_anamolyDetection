@@ -5,6 +5,8 @@ and action-aware scoring. See [window pipeline setup and comparisons](docs/WINDO
 New memory artifacts must be built; the new defaults have not yet been benchmarked.
 
 For several GPUs on one machine, see the [resumable multi-GPU evaluator](docs/MULTI_GPU.md).
+For the quantized Ollama Gemma model on this server, see
+[UCF-Crime in a detached screen](docs/UCF_OLLAMA_SCREEN.md).
 
 A B.Tech project implementation of a training-free video anomaly detection
 system: no model is ever fine-tuned. Frozen, pretrained AI models (CLIP,

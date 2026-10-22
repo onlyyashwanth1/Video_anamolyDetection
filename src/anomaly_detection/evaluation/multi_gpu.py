@@ -90,16 +90,15 @@ def _worker(device, config, cache_dir, threads, jobs, messages):
         _configure_gpu(device, threads)
         import cv2
         from anomaly_detection.processing import VideoEventProcessor
-        from anomaly_detection.reasoning.local_gemma import _load
+        from anomaly_detection.reasoning.local_gemma import configure, ensure_ready
         from anomaly_detection.evaluation.video_cache import VideoCache
 
         cv2.setNumThreads(threads)
         cache = VideoCache(cache_dir, config)
         processor = VideoEventProcessor(config, strict=True)
         processor.masker.model.to("cuda:0")
-        _, gemma = _load()
-        if any(p.device.type != "cuda" for p in gemma.parameters()):
-            raise RuntimeError("Gemma did not fit on one GPU; CPU/disk offload is not supported here")
+        configure(config, device)
+        ensure_ready()
         while True:
             current = jobs.get()
             if current is None:
@@ -184,6 +183,9 @@ def _finalize(device, config, cache_dir, normal, testing, annotations,
     from anomaly_detection.encoding.multi_scale_encoder import MultiScaleClipEncoder
     from anomaly_detection.evaluation.video_cache import VideoCache, CachedProcessor
     from anomaly_detection.evaluation.bank import build_bank, load_bank
+    from anomaly_detection.reasoning.local_gemma import configure
+
+    configure(config, device)
 
     processor = CachedProcessor(VideoCache(cache_dir, config),
                                 MultiScaleClipEncoder(config["encoder"]["model_name"], device="cuda:0"))

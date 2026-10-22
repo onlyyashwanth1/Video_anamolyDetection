@@ -1,0 +1,63 @@
+# UCF-Crime on this server, using the installed quantized Gemma model.
+video:
+  path: /home/atripathi/prudhvi/Dataset/UCFCrime
+  target_fps: 1.0
+encoder:
+  model_name: openai/clip-vit-large-patch14
+temporal:
+  mode: sliding_windows
+  window_seconds: 4.0
+  stride_seconds: 1.0
+captioning:
+  mode: frame_captions_then_summary
+  max_frames_per_window: 4
+segmentation:
+  coarse_threshold: 0.9
+  fine_threshold: 0.95
+familiarisation:
+  observation_window_frames: 500
+  observation_window_minutes: 10
+  observation_fraction: 0.4
+  min_caption_occurrences: 1
+memory:
+  allow_anomaly_promotion: false
+  promotion_repeat_count: 3
+inference:
+  scoring_mode: memory_plus_action
+  action_weight: 0.5
+  action:
+    temperature: 0.1
+    normal_prompts:
+    - people talking peacefully
+    - people walking normally
+    - people playing sports normally
+    - vehicles moving normally on a road
+    - people carrying objects
+    - a quiet scene without dangerous activity
+    anomalous_prompts:
+    - a person punching or kicking another person
+    - a person firing a gun
+    - vehicles colliding in a road accident
+    - a fire or explosion
+    - a person smashing property
+    - a person forcibly taking another person's belongings
+  anomaly_threshold: 0.5
+evaluation:
+  normal_dir: /home/atripathi/prudhvi/Dataset/UCFCrime/Normal_Videos_event
+  test_dir: /home/atripathi/prudhvi/Dataset/UCFCrime/Testing_Video
+  annotation_file: /home/atripathi/prudhvi/Dataset/UCFCrime/Temporal_Anomaly_Annotation_Five_FPS.txt
+  annotation_fps: native
+  memory_bank_path: outputs/memory/ucf_crime_windows_v2.npz
+  output_dir: outputs/ucf_crime_evaluation
+  llm_review: false
+reasoning:
+  backend: ollama
+  model: gemma4:31b-it-q8_0
+  base_port: 11500
+  timeout: 1200
+  load_timeout: 15m
+  num_thread: 4
+  startup_timeout: 120
+  num_ctx: 4096
+  temperature: 0
+  seed: 0

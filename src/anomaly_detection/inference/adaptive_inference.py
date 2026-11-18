@@ -39,6 +39,29 @@ def score_event(event: EventChunk, memory_bank, threshold: float, encoder=None,
             "from build_event_tree(), which computes this automatically."
         )
 
+    settings = settings or {}
+    if settings.get("scoring_mode", "memory") == "action":
+        if action_scorer is None:
+            raise ValueError("Action scoring requires an ActionScorer")
+        components = action_scorer.score(event)
+        anomaly_score = components["action_score"]
+        components["combined_score"] = anomaly_score
+        return AnomalyResult(event=event, anomaly_score=anomaly_score,
+                             is_anomaly=anomaly_score > threshold,
+                             closest_match=None, component_scores=components)
+    if hasattr(memory_bank, "score_memory"):
+        if encoder is None or not event.description:
+            raise ValueError("Visual/text memory requires an encoder and a caption")
+        components = memory_bank.score_memory(
+            event.average_embedding, encoder.encode_text(event.description),
+            image_weight=float(settings.get("memory_image_weight", .5)), k=memory_bank.top_k)
+        anomaly_score = _combine_scores(components, event, action_scorer, settings)
+        # A visual example's paired caption explains the retrieval.
+        best_entry = memory_bank.closest_visual(event.average_embedding)
+        return AnomalyResult(event=event, anomaly_score=anomaly_score,
+                             is_anomaly=anomaly_score > threshold,
+                             closest_match=best_entry.text, component_scores=components)
+
     # --- Image probe (top-K) ---
     img_entry, img_best_sim, img_topk_sim = memory_bank.top_k_match(
         event.average_embedding, k=top_k
@@ -67,20 +90,7 @@ def score_event(event: EventChunk, memory_bank, threshold: float, encoder=None,
     anomaly_score = _sigmoid_amplify(fused_raw, center=0.55, steepness=25.0)
     components = {"memory_score": anomaly_score, "memory_raw": fused_raw,
                   "memory_image_raw": img_raw, "memory_text_raw": txt_raw}
-    settings = settings or {}
-    mode = settings.get("scoring_mode", "memory")
-    if mode not in {"memory", "action", "memory_plus_action"}:
-        raise ValueError(f"Unknown scoring mode: {mode}")
-    if mode != "memory":
-        if action_scorer is None:
-            raise ValueError("Action scoring requires an ActionScorer")
-        components.update(action_scorer.score(event))
-        weight = float(settings.get("action_weight", 0.5))
-        if not 0 <= weight <= 1:
-            raise ValueError("action_weight must be in [0, 1]")
-        anomaly_score = (components["action_score"] if mode == "action" else
-                         (1 - weight) * anomaly_score + weight * components["action_score"])
-    components["combined_score"] = anomaly_score
+    anomaly_score = _combine_scores(components, event, action_scorer, settings)
 
     best_entry = img_entry if img_raw >= txt_raw else txt_entry
     is_anomaly = anomaly_score > threshold
@@ -92,4 +102,22 @@ def score_event(event: EventChunk, memory_bank, threshold: float, encoder=None,
         closest_match=best_entry.text if best_entry else None,
         component_scores=components,
     )
+
+
+def _combine_scores(components, event, action_scorer, settings):
+    anomaly_score = components["memory_score"]
+    mode = settings.get("scoring_mode", "memory")
+    if mode not in {"memory", "action", "memory_plus_action"}:
+        raise ValueError(f"Unknown scoring mode: {mode}")
+    if mode != "memory":
+        if action_scorer is None:
+            raise ValueError("Action scoring requires an ActionScorer")
+        components.update(action_scorer.score(event))
+        weight = float(settings.get("action_weight", 0.5))
+        if not math.isfinite(weight) or not 0 <= weight <= 1:
+            raise ValueError("action_weight must be in [0, 1]")
+        anomaly_score = (components["action_score"] if mode == "action" else
+                         (1 - weight) * anomaly_score + weight * components["action_score"])
+    components["combined_score"] = anomaly_score
+    return anomaly_score
 

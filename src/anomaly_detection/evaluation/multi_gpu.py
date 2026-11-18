@@ -10,6 +10,8 @@ import queue
 import time
 import traceback
 
+from .logging_utils import configure_evaluation_logging
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -84,7 +86,7 @@ def _configure_gpu(device, threads):
 
 
 def _worker(device, config, cache_dir, threads, jobs, messages):
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(process)d %(levelname)s %(message)s")
+    configure_evaluation_logging(worker=True)
     current = None
     try:
         _configure_gpu(device, threads)
@@ -178,7 +180,7 @@ def run_workers(devices, config, cache_dir, jobs, threads=4, worker_target=None)
 def _finalize(device, config, cache_dir, normal, testing, annotations,
               bank_path, annotation_path, output, stage, threads):
     """Only CLIP is needed here unless optional test-time Gemma review is enabled."""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_evaluation_logging()
     _configure_gpu(device, threads)
     from anomaly_detection.encoding.multi_scale_encoder import MultiScaleClipEncoder
     from anomaly_detection.evaluation.video_cache import VideoCache, CachedProcessor
@@ -190,8 +192,11 @@ def _finalize(device, config, cache_dir, normal, testing, annotations,
     processor = CachedProcessor(VideoCache(cache_dir, config),
                                 MultiScaleClipEncoder(config["encoder"]["model_name"], device="cuda:0"))
     if Path(bank_path).exists():
-        bank, metadata = load_bank(bank_path, config, normal)
+        bank, metadata = load_bank(bank_path, config,
+                                   None if config["evaluation"].get("frozen_reference_memory") else normal)
     else:
+        if config["evaluation"].get("frozen_reference_memory"):
+            raise FileNotFoundError("Frozen transfer requires an existing source-domain memory bank")
         bank, metadata = build_bank(processor, normal, config, bank_path)
     if stage != "build-memory":
         from anomaly_detection.evaluation.runner import evaluate

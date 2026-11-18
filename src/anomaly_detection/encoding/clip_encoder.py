@@ -68,6 +68,20 @@ class ClipEncoder:
         features = features / features.norm(dim=-1, keepdim=True)
         return features.squeeze(0).cpu().numpy()
 
+    @torch.no_grad()
+    def encode_texts(self, texts, batch_size=256) -> np.ndarray:
+        """Same text features as encode_text, batched for cached rescoring."""
+        if batch_size < 1 or not texts:
+            raise ValueError("Expected texts and a positive batch size")
+        outputs = []
+        for start in range(0, len(texts), batch_size):
+            inputs = self.processor(text=list(texts[start:start + batch_size]), return_tensors="pt",
+                                    padding=True).to(self.device)
+            features = _unwrap_features(self.model.get_text_features(**inputs))
+            features = features / features.norm(dim=-1, keepdim=True)
+            outputs.append(features.cpu().numpy())
+        return np.concatenate(outputs)
+
     @staticmethod
     def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
         """Both vectors are already normalized, so this is just a dot product."""

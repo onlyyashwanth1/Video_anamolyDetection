@@ -74,8 +74,8 @@ from its beginning. Once the old session exits, rerun the same launcher command
 to resume. The GPU count may change. Resume uses:
 
 - Checkpoints: `outputs/checkpoints/ucf_ollama/`
-- Normal memory: `outputs/memory/ucf_ollama.npz`
-- Results: `outputs/ucf_multi_gpu_evaluation/<timestamp>/`
+- Normal memory: `outputs/memory/ucf_visual_text_v1.npz`
+- Results: `outputs/ucf_expanded95_evaluation/<timestamp>/`
 
 The checkpoint identity includes model tag, manifest digest, quantization,
 generation settings, and the existing video/feature settings. Changing GPU IDs,
@@ -99,7 +99,7 @@ server ports or thread counts does not invalidate completed video features.
 .venv/bin/python -u scripts/evaluate_ucf_multi_gpu.py \
   --config config/ucf_ollama.yaml --gpus 0,1 --stage all \
   --checkpoint-dir outputs/checkpoints/ucf_ollama \
-  --memory-bank-path outputs/memory/ucf_ollama.npz
+  --memory-bank-path outputs/memory/ucf_visual_text_v1.npz
 ```
 
 Ollama must be on PATH and the model must already be installed in

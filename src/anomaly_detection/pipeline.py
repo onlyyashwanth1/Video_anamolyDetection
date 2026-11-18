@@ -5,6 +5,7 @@ Pipeline orchestrator - wires together every module in the order described in th
 import math
 from collections import Counter
 from typing import List, Tuple
+from pathlib import Path
 import yaml
 
 from anomaly_detection.processing import VideoEventProcessor
@@ -29,34 +30,68 @@ def run_steps_1_to_3(video_source, config: dict):
 
 
 def run_full_pipeline(video_source, config: dict) -> Tuple[List[str], MemoryBank, List[AnomalyResult]]:
+    from anomaly_detection.evaluation.bank import load_bank
+    from anomaly_detection.reasoning.ollama_runtime import caption_session, resolve_model
+
+    memory_bank = None
+    action_only = config.get("inference", {}).get("scoring_mode") == "action"
+    if not action_only and config.get("memory", {}).get("representation", "text") == "visual_text":
+        # Load the calibrated reference bank before starting any caption models.
+        # Rebuilding text memory from the first 40% silently changes the selected model.
+        if config["memory"].get("allow_anomaly_promotion", False):
+            raise ValueError("Visual reference memory does not support automatic text-only promotion")
+        resolve_model(config)
+        path = Path(config["evaluation"]["memory_bank_path"]).expanduser()
+        if not path.is_absolute():
+            path = Path(__file__).resolve().parents[2] / path
+        memory_bank, _ = load_bank(path, config)
+    with caption_session(config):
+        return _run_full_pipeline(video_source, config, memory_bank)
+
+
+def _run_full_pipeline(video_source, config, memory_bank=None):
     processor = VideoEventProcessor(config)
     video = processor.process(video_source, caption=False)
     tree, encoder, raw_frames = video.events, processor.encoder, video.frames
 
-    if len(tree) < 2:
+    action_only = config.get("inference", {}).get("scoring_mode") == "action"
+    if not action_only and memory_bank is None and len(tree) < 2:
         raise ValueError(
             f"Only found {len(tree)} top-level event(s) - need at least 2."
         )
 
-    if config.get("temporal", {}).get("mode", "events") == "sliding_windows":
-        from anomaly_detection.segmentation.sliding_windows import split_familiarisation
-        familiarisation_events, live_events = split_familiarisation(
-            tree, config["familiarisation"]["observation_fraction"], video.frame_count)
+    if action_only:
+        if not tree:
+            raise ValueError("No video windows to score")
+        live_events = tree
+        processor.caption_events(live_events, raw_frames)
+        constitution = []
+        memory_bank = MemoryBank()
+    elif memory_bank is not None:
+        if not tree:
+            raise ValueError("No video windows to score")
+        # The saved bank supplies normality. Score the whole input, including its beginning.
+        live_events = tree
+        processor.caption_events(live_events, raw_frames)
+        constitution = [entry.text for entry in memory_bank.entries]
     else:
-        split_index = max(1, math.ceil(len(tree) * config["familiarisation"]["observation_fraction"]))
-        split_index = min(split_index, len(tree) - 1)
-        familiarisation_events, live_events = tree[:split_index], tree[split_index:]
+        if config.get("temporal", {}).get("mode", "events") == "sliding_windows":
+            from anomaly_detection.segmentation.sliding_windows import split_familiarisation
+            familiarisation_events, live_events = split_familiarisation(
+                tree, config["familiarisation"]["observation_fraction"], video.frame_count)
+        else:
+            split_index = max(1, math.ceil(len(tree) * config["familiarisation"]["observation_fraction"]))
+            split_index = min(split_index, len(tree) - 1)
+            familiarisation_events, live_events = tree[:split_index], tree[split_index:]
 
-    processor.caption_events(familiarisation_events, raw_frames)
-    processor.caption_events(live_events, raw_frames)
-    captions = [event.description for event in familiarisation_events]
-    counts = Counter(captions)
-    constitution = build_domain_constitution(
-        captions, min_occurrences=config["familiarisation"]["min_caption_occurrences"]
-    )
-    memory_entries = embed_constitution(constitution, encoder, occurrence_counts=counts)
-
-    memory_bank = MemoryBank(initial_entries=memory_entries)
+        processor.caption_events(familiarisation_events, raw_frames)
+        processor.caption_events(live_events, raw_frames)
+        captions = [event.description for event in familiarisation_events]
+        counts = Counter(captions)
+        constitution = build_domain_constitution(
+            captions, min_occurrences=config["familiarisation"]["min_caption_occurrences"])
+        memory_entries = embed_constitution(constitution, encoder, occurrence_counts=counts)
+        memory_bank = MemoryBank(initial_entries=memory_entries)
 
     threshold = config["inference"]["anomaly_threshold"]
     action_scorer = None
@@ -69,7 +104,8 @@ def run_full_pipeline(video_source, config: dict) -> Tuple[List[str], MemoryBank
                              action_scorer=action_scorer, settings=config["inference"])
 
         if result.is_anomaly:
-            result = explain_anomaly(result, constitution)
+            if config.get("evaluation", {}).get("llm_review", True):
+                result = explain_anomaly(result, constitution)
             if result.is_anomaly and config["memory"].get("allow_anomaly_promotion", False):
                 memory_bank.log_unmatched(event.description, encoder.encode_text(event.description))
                 memory_bank.try_promote(event.description, config["memory"]["promotion_repeat_count"])

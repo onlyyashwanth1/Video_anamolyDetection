@@ -3,6 +3,8 @@ Gemma image captions and text generation, using Transformers or local Ollama.
 """
 
 from io import BytesIO
+import logging
+import time
 
 from PIL import Image
 
@@ -12,6 +14,7 @@ _processor = None
 _model = None
 _settings = {}
 _client = None
+LOGGER = logging.getLogger(__name__)
 
 
 def configure(config, device=None):
@@ -66,8 +69,24 @@ def _chat(prompt, max_new_tokens, image=None):
         buffer = BytesIO()
         image.convert("RGB").save(buffer, format="PNG")
         message["images"] = [buffer.getvalue()]
-    response = _client.chat(model=_settings["model"], messages=[message], stream=False,
-                            think=False, keep_alive=-1, options=_options(max_new_tokens))
+    from ollama import ResponseError
+
+    # A CUDA fault kills Ollama's separate llama-server runner. Reusing that
+    # runner/context cannot repair it; unload before requesting a fresh one.
+    for attempt in range(3):
+        try:
+            response = _client.chat(model=_settings["model"], messages=[message], stream=False,
+                                    think=False, keep_alive=-1, options=_options(max_new_tokens))
+            break
+        except ResponseError as error:
+            if (attempt == 2 or error.status_code != 500
+                    or "cuda error" not in str(error).lower()):
+                raise
+            LOGGER.warning("Ollama CUDA failure; reloading model runner and retrying "
+                           "identical request (%d/2): %s", attempt + 1, error)
+            time.sleep(2)
+            _client.generate(model=_settings["model"], stream=False, keep_alive=0)
+            ensure_ready()
     text = (response.message.content or "").strip()
     if not text:
         raise RuntimeError("Ollama returned an empty caption/summary")

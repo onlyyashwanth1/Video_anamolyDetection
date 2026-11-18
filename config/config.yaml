@@ -1,71 +1,120 @@
-# Central config - every tunable number in the pipeline lives here,
-# instead of being hardcoded across different files.
-
+# Default: expanded 26 normal / 26 anomalous phrases.
+# Final = 0.95 * (0.875 * visual action + 0.125 * caption action)
+#       + 0.05 * calibrated visual normal-memory score.
+# UCF reference bank and calibration are reused; no test-time memory updates.
 video:
-  path: "/home/nverma/VADGEMMA/Datasets/UCF_Crime/Videos"
-  target_fps: 1.0             # Step 1: how many frames/sec to sample
-
+  path: /home/atripathi/prudhvi/Dataset/UCFCrime
+  target_fps: 1.0
 encoder:
-  model_name: "openai/clip-vit-large-patch14"   # Step 2 (768-dim vector space, paper & mentor spec)
-
+  model_name: openai/clip-vit-large-patch14
 temporal:
-  mode: sliding_windows      # Use events for the old segmentation baseline.
+  mode: sliding_windows
   window_seconds: 4.0
   stride_seconds: 1.0
-
 captioning:
-  mode: frame_captions_then_summary  # Baseline: middle_frame
+  mode: frame_captions_then_summary
   max_frames_per_window: 4
-
 segmentation:
-  coarse_threshold: 0.90      # Step 3: similarity below this = new top-level event (tuned for ViT-L/14)
-  fine_threshold: 0.95        # Step 3: similarity below this = new sub-event (tuned for ViT-L/14)
-
+  coarse_threshold: 0.9
+  fine_threshold: 0.95
 familiarisation:
-  observation_window_frames: 500     # Steps 5-6: how many frames before alerting starts
-                                       # (intended for long/continuous real deployments)
+  observation_window_frames: 500
   observation_window_minutes: 10
-  observation_fraction: 0.4            # Demo: first 40% of video time is assumed normal.
-                                       # Windows crossing the boundary are excluded.
-  min_caption_occurrences: 1           # A caption must appear at least this many times
-                                       # during familiarisation to be kept in the notebook.
-                                       # Raise this for longer real deployments.
-
+  observation_fraction: 0.4
+  min_caption_occurrences: 1
 memory:
-  allow_anomaly_promotion: false  # Repeated anomaly alerts must not become normal automatically.
-  promotion_repeat_count: 3   # Step 7: repetitions needed before auto-promoting to "normal"
-
+  allow_anomaly_promotion: false
+  promotion_repeat_count: 3
+  representation: visual_text
+  search_device: cuda:0
+  calibration_fraction: 0.2
+  calibration_seed: 42
+  calibration_windows_per_video: 256
+  top_k: 10
 inference:
-  scoring_mode: memory_plus_action  # Alternatives: memory, action
-  action_weight: 0.5          # Experimental default; select on held-out validation data.
+  scoring_mode: memory_plus_action
+  action_weight: 0.95
   action:
-    temperature: 0.1         # Heuristic similarity scaling, NOT probability calibration.
+    temperature: 0.1
     normal_prompts:
-      - people talking peacefully
-      - people walking normally
-      - people playing sports normally
-      - vehicles moving normally on a road
-      - people carrying objects
-      - a quiet scene without dangerous activity
+    - people talking peacefully
+    - people walking normally
+    - people playing sports normally
+    - vehicles moving normally on a road
+    - people carrying objects
+    - a quiet scene without dangerous activity
+    - people standing and waiting in a public place
+    - people running or exercising during a sports activity
+    - people greeting or hugging one another
+    - people sitting or resting peacefully
+    - a person browsing items on shelves in a shop
+    - a customer paying for items at a checkout counter
+    - a worker loading or unloading boxes
+    - a person opening a door with a key
+    - a person placing their belongings into a bag
+    - a person picking up and carrying an object normally
+    - cars parked along a street or in a parking lot
+    - cars stopping and waiting at a traffic intersection
+    - a vehicle passing another vehicle safely
+    - a driver getting into or out of a parked car
+    - pedestrians crossing a road safely
+    - a police officer talking calmly with a person
+    - people entering or leaving a building normally
+    - a person cleaning or repairing a building
+    - a person cooking food over a controlled flame
+    - a person climbing or playing on sports equipment
     anomalous_prompts:
-      - a person punching or kicking another person
-      - a person firing a gun
-      - vehicles colliding in a road accident
-      - a fire or explosion
-      - a person smashing property
-      - a person forcibly taking another person's belongings
-  anomaly_threshold: 0.50     # Experimental alert cutoff; validate separately from AUC/AP.
-
-# Benchmarking uses every normal video and then every complete test video.
-# Relative artifact paths resolve from the project root.
+    - a person punching or kicking another person
+    - a person firing a gun
+    - vehicles colliding in a road accident
+    - a fire or explosion
+    - a person smashing property
+    - a person forcibly taking another person's belongings
+    - a person beating another person who is lying on the ground
+    - a group of people physically attacking another person
+    - a person violently pushing another person to the ground
+    - a person dragging or forcibly restraining another person
+    - police officers chasing and tackling a person
+    - a person pointing a handgun at another person
+    - a person threatening another person with a knife
+    - a vehicle striking a pedestrian
+    - a vehicle crashing into a roadside obstacle
+    - a vehicle overturning on a road
+    - a person breaking a window to enter a building
+    - a person forcing open a closed door with a tool
+    - a person climbing over a gate or fence to enter a property
+    - a person breaking the window of a parked car
+    - a person grabbing a bag from another person's hands
+    - a person removing an object from another person's bag
+    - a person hiding merchandise inside their clothing in a shop
+    - a person deliberately igniting material beside a building
+    - a building or vehicle engulfed in flames and smoke
+    - a person spraying graffiti on a wall
+    image_weight: 0.875
+  anomaly_threshold: 0.5935198772337466
+  memory_image_weight: 1.0
 evaluation:
-  normal_dir: "/home/nverma/VADGEMMA/Datasets/UCF_Crime/Videos/Normal_Videos_event"
-  test_dir: "/home/nverma/VADGEMMA/Datasets/UCF_Crime/Videos/Testing_Video"
-  annotation_file: "/home/nverma/VADGEMMA/Datasets/UCF_Crime/Annotation/Temporal_Anomaly_Annotation_Five_FPS.txt"
-  # Example intervals reference native indices despite the annotation filename:
-  # Abuse030 ends at 1360, exceeding its ~258 frames if indexed at 5 FPS.
-  # Use numeric FPS only for genuinely resampled-frame annotation indices.
-  annotation_fps: "native"
-  memory_bank_path: "outputs/memory/ucf_crime_windows_v2.npz"
-  output_dir: "outputs/ucf_crime_evaluation"
-  llm_review: false  # Score-only evaluation; Gemma event captioning remains enabled.
+  normal_dir: /home/atripathi/prudhvi/Dataset/UCFCrime/Normal_Videos_event
+  test_dir: /home/atripathi/prudhvi/Dataset/UCFCrime/Testing_Video
+  annotation_file: /home/atripathi/prudhvi/Dataset/UCFCrime/Temporal_Anomaly_Annotation_Five_FPS.txt
+  annotation_fps: native
+  memory_bank_path: outputs/memory/ucf_visual_text_v1.npz
+  output_dir: outputs/ucf_expanded95_evaluation
+  llm_review: false
+  dataset: UCF-Crime
+  checkpoint_dir: outputs/checkpoints/ucf_ollama
+  model_variant: expanded_actions95_visual_memory5_v1
+reasoning:
+  backend: ollama
+  model: gemma4:31b-it-q8_0
+  base_port: 11500
+  timeout: 1200
+  load_timeout: 15m
+  num_thread: 4
+  startup_timeout: 120
+  num_ctx: 4096
+  temperature: 0
+  seed: 0
+  models_dir: /home/atripathi/.ollama/models
+  model_digest: 53dd8459790f8795177444daa9e33f417e03c0d1cdedb80b6c73898603d20aef
+  quantization: Q8_0

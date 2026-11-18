@@ -5,6 +5,7 @@ from io import BytesIO
 import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+from contextlib import contextmanager
 
 from PIL import Image
 import pytest
@@ -130,3 +131,82 @@ def test_managed_servers_pin_devices_and_cleanup(tmp_path, monkeypatch, fail_sec
     assert second.kwargs["env"]["CUDA_VISIBLE_DEVICES"] == "GPU-b"
     assert first.kwargs["env"]["OLLAMA_NUM_PARALLEL"] == "1"
     assert first.kwargs["start_new_session"] is True
+
+
+def test_single_process_caption_session_owns_server_and_cleans_up(monkeypatch):
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "3,7")
+    monkeypatch.setattr(runtime, "resolve_model", MagicMock())
+    configure, ready = MagicMock(), MagicMock()
+    monkeypatch.setattr(gemma, "configure", configure)
+    monkeypatch.setattr(gemma, "ensure_ready", ready)
+    lifecycle = []
+
+    @contextmanager
+    def servers(devices, config, logs):
+        assert devices == ["3"]
+        lifecycle.append("start")
+        try:
+            yield
+        finally:
+            lifecycle.append("stop")
+
+    monkeypatch.setattr(runtime, "ollama_servers", servers)
+    config = {"reasoning": {"backend": "ollama"}}
+    with pytest.raises(RuntimeError, match="caption error"):
+        with runtime.caption_session(config):
+            configure.assert_called_with(config, "3")
+            ready.assert_called_once()
+            raise RuntimeError("caption error")
+    assert lifecycle == ["start", "stop"]
+    configure.assert_called_with({})
+
+
+def test_single_process_caption_session_reuses_managed_endpoint(monkeypatch):
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "3")
+    monkeypatch.setattr(runtime, "resolve_model", MagicMock())
+    configure, ready, servers = MagicMock(), MagicMock(), MagicMock()
+    monkeypatch.setattr(gemma, "configure", configure)
+    monkeypatch.setattr(gemma, "ensure_ready", ready)
+    monkeypatch.setattr(runtime, "ollama_servers", servers)
+    config = {"reasoning": {"backend": "ollama"}, "_ollama_hosts": {"3": "http://127.0.0.1:11500"}}
+    with runtime.caption_session(config):
+        pass
+    servers.assert_not_called()
+    configure.assert_called_once_with(config, "3")
+    ready.assert_called_once()
+
+
+def test_cuda_crash_reloads_runner_and_retries_identical_image(configured, monkeypatch):
+    from ollama import ResponseError
+    client, _, _ = configured
+    ready = MagicMock()
+    monkeypatch.setattr(gemma, 'ensure_ready', ready)
+    monkeypatch.setattr(gemma.time, 'sleep', lambda _: None)
+    client.chat.side_effect = [ResponseError('CUDA error: an illegal instruction was encountered', 500),
+                              SimpleNamespace(message=SimpleNamespace(content='walking'))]
+    assert gemma.generate_caption(Image.new('RGB', (3, 2)), 'Describe') == 'walking'
+    assert client.chat.call_args_list[0] == client.chat.call_args_list[1]
+    client.generate.assert_called_once_with(model='gemma4:31b-it-q8_0', stream=False, keep_alive=0)
+    ready.assert_called_once()
+
+
+def test_persistent_cuda_crash_has_bounded_retries(configured, monkeypatch):
+    from ollama import ResponseError
+    client, _, _ = configured
+    monkeypatch.setattr(gemma, 'ensure_ready', MagicMock())
+    monkeypatch.setattr(gemma.time, 'sleep', lambda _: None)
+    client.chat.side_effect = ResponseError('CUDA error', 500)
+    with pytest.raises(ResponseError, match='CUDA error'):
+        gemma.generate_text('Summarize')
+    assert client.chat.call_count == 3
+    assert client.generate.call_count == 2
+
+
+def test_non_cuda_errors_are_not_retried(configured):
+    from ollama import ResponseError
+    client, _, _ = configured
+    client.chat.side_effect = ResponseError('model not found', 404)
+    with pytest.raises(ResponseError, match='model not found'):
+        gemma.generate_text('Summarize')
+    assert client.chat.call_count == 1
+    client.generate.assert_not_called()

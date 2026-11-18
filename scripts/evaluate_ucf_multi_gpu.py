@@ -15,7 +15,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 def main(dataset="UCF-Crime", argv=None):
     import yaml
-    from anomaly_detection.evaluation.bank import load_bank
+    from anomaly_detection.evaluation.logging_utils import configure_evaluation_logging
+    from anomaly_detection.evaluation.bank import file_digest, load_bank
     from anomaly_detection.evaluation.dataset import (
         check_disjoint, discover_videos, load_annotations, validate_test_manifest,
     )
@@ -24,31 +25,36 @@ def main(dataset="UCF-Crime", argv=None):
     )
     from anomaly_detection.evaluation.video_cache import VideoCache
 
-    if dataset not in ("UCF-Crime", "XD-Violence"):
+    # ShanghaiTech and Avenue are prepared in the UCF folder/annotation layout (see
+    # scripts/prepare_shanghaitech.py, scripts/prepare_avenue.py), so they share the generic branch.
+    prefixes = {"UCF-Crime": ("ucf", "ucf_crime"), "XD-Violence": ("xd_violence", "xd_violence"),
+                "ShanghaiTech": ("shanghaitech", "shanghaitech"), "Avenue": ("avenue", "avenue")}
+    if dataset not in prefixes:
         raise ValueError(f"Unsupported dataset: {dataset}")
-    prefix = "xd_violence" if dataset == "XD-Violence" else "ucf"
-    bank_name = "xd_violence" if dataset == "XD-Violence" else "ucf_crime"
+    prefix, bank_name = prefixes[dataset]
     parser = argparse.ArgumentParser(description=f"{dataset}: {__doc__}")
     parser.add_argument("--config", type=Path, default=ROOT / "config/config.yaml")
     parser.add_argument("--gpus", required=True, help="Visible GPU indices, e.g. 0,1,2,3,4,5")
     parser.add_argument("--stage", choices=("all", "build-memory", "evaluate"), default="all")
-    parser.add_argument("--checkpoint-dir", type=Path,
-                        default=ROOT / f"outputs/checkpoints/{prefix}_multi_gpu")
-    parser.add_argument("--memory-bank-path", type=Path,
-                        default=ROOT / f"outputs/memory/{bank_name}_multi_gpu.npz")
+    parser.add_argument("--checkpoint-dir", type=Path)
+    parser.add_argument("--memory-bank-path", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--normal-dir", type=Path)
     parser.add_argument("--test-dir", type=Path)
     parser.add_argument("--annotation-file", type=Path)
+    parser.add_argument("--frozen-reference-memory", action="store_true",
+                        help="XD evaluate only: reuse source-domain memory without building/adapting XD memory")
     if dataset == "XD-Violence":
         parser.add_argument("--dataset-root", type=Path,
-                            default=Path("/home/nverma/training_free_vad/Datasets/XDViolence"))
+                            default=ROOT.parent / "Dataset/XDViolence")
     parser.add_argument("--threads-per-worker", type=int, default=4)
     parser.add_argument("--dry-run", action="store_true", help="Inspect datasets/checkpoints; no models or GPU use")
     args = parser.parse_args(argv)
+    if args.frozen_reference_memory and (dataset != "XD-Violence" or args.stage != "evaluate"):
+        parser.error("--frozen-reference-memory requires XD-Violence and --stage evaluate")
     if dataset == "XD-Violence" and (args.normal_dir or args.test_dir or args.annotation_file):
         parser.error("For XD use --dataset-root to select the prepared dataset")
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_evaluation_logging()
     if args.threads_per_worker < 1:
         parser.error("--threads-per-worker must be positive")
     try:
@@ -60,6 +66,10 @@ def main(dataset="UCF-Crime", argv=None):
     resolve_model(config)
     settings = config["evaluation"]
     settings["dataset"] = dataset
+    if args.frozen_reference_memory:
+        settings["frozen_reference_memory"] = True
+    elif settings.get("frozen_reference_memory"):
+        parser.error("Frozen-reference configurations require explicit --frozen-reference-memory")
 
     def path(value):
         value = Path(value).expanduser()
@@ -84,14 +94,33 @@ def main(dataset="UCF-Crime", argv=None):
     validate_test_manifest(testing, annotations)
     if not 0 <= config["inference"]["anomaly_threshold"] <= 1 or config["video"]["target_fps"] <= 0:
         parser.error("Invalid threshold or sampling FPS")
-    bank_path, cache_dir = path(args.memory_bank_path), path(args.checkpoint_dir)
+    if dataset == "XD-Violence":
+        # Standard XD evaluation always uses XD references, never the UCF config's bank.
+        default_bank = ("outputs/memory/xd_violence_visual_text_v1.npz"
+                        if config.get("memory", {}).get("representation") == "visual_text"
+                        else f"outputs/memory/{bank_name}_multi_gpu.npz")
+        default_cache = f"outputs/checkpoints/{prefix}_multi_gpu"
+        default_output = f"outputs/{prefix}_multi_gpu_evaluation"
+    else:
+        default_bank = settings.get("memory_bank_path", f"outputs/memory/{bank_name}_multi_gpu.npz")
+        default_cache = settings.get("checkpoint_dir", f"outputs/checkpoints/{prefix}_multi_gpu")
+        default_output = settings.get("output_dir", f"outputs/{prefix}_multi_gpu_evaluation")
+    bank_path = path(args.memory_bank_path or default_bank)
+    cache_dir = path(args.checkpoint_dir or default_cache)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    output = path(args.output_dir or f"outputs/{prefix}_multi_gpu_evaluation/{stamp}")
+    output = path(args.output_dir or Path(default_output) / stamp)
     settings.update(memory_bank_path=str(bank_path), output_dir=str(output))
     if args.stage != "build-memory" and output.exists() and any(output.iterdir()):
         parser.error("Output directory is nonempty; choose a fresh output directory (checkpoints are reused)")
     if bank_path.exists():
-        load_bank(bank_path, config, normal)
+        if args.frozen_reference_memory and settings.get("reference_memory_sha256"):
+            if file_digest(bank_path) != settings["reference_memory_sha256"]:
+                parser.error("Frozen source memory hash differs from the transfer configuration")
+        _, reference_metadata = load_bank(bank_path, config, None if args.frozen_reference_memory else normal)
+        if args.frozen_reference_memory:
+            reference = {v["name"]: Path(v["path"]) for v in reference_metadata["normal_videos"]}
+            check_disjoint(reference, testing)
+            logging.info("Frozen source memory: %s; no XD normal videos used to rebuild/calibrate memory", bank_path)
     elif args.stage == "evaluate":
         parser.error("Build the memory bank first, or use --stage all")
 

@@ -59,6 +59,9 @@ class MultiScaleClipEncoder:
         """
         return self.base_encoder.encode_text(text)
 
+    def encode_texts(self, texts, batch_size=256) -> np.ndarray:
+        return self.base_encoder.encode_texts(texts, batch_size)
+
     @staticmethod
     def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
         return ClipEncoder.cosine_similarity(a, b)

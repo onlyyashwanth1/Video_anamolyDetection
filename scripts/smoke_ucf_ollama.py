@@ -60,6 +60,14 @@ def main():
             result = {"check": "real image and text generation", "source": str(source),
                       "caption": caption, "summary": summary, "model": config["reasoning"]}
     else:
+        from anomaly_detection.evaluation.bank import load_bank
+        from anomaly_detection.evaluation.dataset import discover_videos
+        references = discover_videos(settings["normal_dir"])
+        bank_path = Path(settings["memory_bank_path"]).expanduser()
+        bank_path = bank_path if bank_path.is_absolute() else ROOT / bank_path
+        # Check the selected full reference bank rather than building a different
+        # one-video text bank (which cannot calibrate visual normal memory).
+        load_bank(bank_path, config, references)
         sources = {source.stem: source}
         normal = Path(settings["normal_dir"]) / "Normal_Videos157_x264.mp4"
         sources[normal.stem] = normal
@@ -71,10 +79,10 @@ def main():
                 run_workers(devices, config, cache_dir, jobs, 4)
                 from anomaly_detection.evaluation.dataset import load_annotations
                 annotation_path = Path(settings["annotation_file"])
-                finalize(devices[0], config, cache_dir, {normal.stem: normal},
-                         {source.stem: source}, load_annotations(annotation_path),
-                         folder / "smoke_memory.npz", annotation_path, folder / "evaluation",
-                         "all", 4)
+                annotations = load_annotations(annotation_path)
+                finalize(devices[0], config, cache_dir, references,
+                         {source.stem: source}, {source.stem: annotations[source.stem]},
+                         bank_path, annotation_path, folder / "evaluation", "evaluate", 4)
             records = []
             for name, path in sources.items():
                 video = cache.load(path)

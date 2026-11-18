@@ -1,26 +1,37 @@
 # Video Anomaly Detection — Training-Free, Domain-Independent Framework
 
-The default pipeline now uses overlapping windows, temporal caption summaries,
-and action-aware scoring. See [window pipeline setup and comparisons](docs/WINDOW_PIPELINE.md).
-New memory artifacts must be built; the new defaults have not yet been benchmarked.
+The new [shared model configuration](config/shared_best.yaml) reaches **83.12%
+UCF-Crime ROC-AUC** and **71.76% XD-Violence AP**, using identical model settings
+on both datasets and no reference memory bank. These are offline benchmark
+development results. See the [design, search evidence and reproduction guide](docs/SHARED_MODEL_SEARCH.md).
+
+The default UCF configuration uses the expanded 26 normal / 26 anomalous
+phrases, 95% action evidence and 5% visual normal memory. Inside the action
+score, visual/caption evidence is weighted 87.5% / 12.5%. See the
+[model and memory setup](docs/UCF_MODEL.md).
+It uses overlapping windows and temporal captions as described in the
+[window pipeline](docs/WINDOW_PIPELINE.md).
 
 For several GPUs on one machine, see the [resumable multi-GPU evaluator](docs/MULTI_GPU.md).
 For the quantized Ollama Gemma model on this server, see
 [UCF-Crime in a detached screen](docs/UCF_OLLAMA_SCREEN.md).
 
 A B.Tech project implementation of a training-free video anomaly detection
-system: no model is ever fine-tuned. Frozen, pretrained AI models (CLIP,
-and later YOLO-World/an LLM) are used as fixed tools, and the system learns
-what's "normal" for a new location by watching it briefly, rather than
-being trained on labeled data for that specific place.
+system: pretrained encoder weights are frozen. The current default uses a
+saved normal-reference bank and development-selected prompts and fusion
+weights. These are dataset adaptations even though neural weights are not
+fine-tuned.
 
 See `docs/PROJECT_STATUS.md` for exactly what's implemented vs. still a stub.
 
 UCF-Crime benchmarking with a permanent normal memory bank is described in
 [`docs/UCF_CRIME_EVALUATION.md`](docs/UCF_CRIME_EVALUATION.md). It uses separate
-normal-memory and test folders; GPU execution and evaluation verification are
-pending. Current captioning/reasoning uses local Gemma, superseding the Gemini
-description below. Demo and benchmark share mean-pooled multi-scale CLIP events.
+normal-memory and test folders. The fixed model's recorded ROC-AUC is **77.57%**
+on all 290 supplied videos; see the [result summary](outputs/results/ucf_expanded95_summary.json).
+Prompts and weights were selected during development using some of these test
+videos, so this is a development result rather than an independent test estimate.
+Current captioning uses local Gemma via Ollama. Demo and benchmark share
+mean-pooled multi-scale CLIP windows.
 
 ## Folder structure
 
@@ -110,20 +121,23 @@ pytest tests/
   fully functional right now and can be swapped later without touching
   any other module (`build_event_tree()`'s signature only needs a list of
     `EncodedFrame`).
-- **Domain Familiarisation / Captioning (Steps 5-6)** uses the Gemini Multimodal API if an API key is provided, otherwise it falls back to zero-shot CLIP classification against a predefined list of labels.
-- **LLM Reasoning (Step 10)** uses the Gemini API if a key is provided to generate natural language explanations.
+- **Captioning (Steps 5-6)** uses local Gemma through Ollama for frame captions and temporal summaries in the default configuration.
+- **LLM verdict review (Step 10)** is disabled in the selected scoring configuration; optional review uses local Gemma.
 
 Everything else follows the paper's design as closely as possible.
 
-## Tuning
+## Configuration
 
-All thresholds live in `config/config.yaml`, not hardcoded in any `.py`
-file:
+The [UCF model guide](docs/UCF_MODEL.md) describes the fixed scoring formula,
+normal memory bank, and evaluation command.
+
+Selected scoring settings live in `config/config.yaml`:
 - `segmentation.coarse_threshold` / `fine_threshold` — how eagerly the
   system splits video into events
-- `inference.anomaly_threshold` — the cutoff for flagging an anomaly (not
-  tuned yet — needs labeled data + an AUC-ROC sweep, see
-  `docs/PROJECT_STATUS.md`)
+- `inference.anomaly_threshold` — alert cutoff; changing
+  this cutoff does not change ROC-AUC
+- `inference.action_weight` / `action.image_weight` / `memory_image_weight` —
+  action-versus-memory, visual-versus-caption action, and visual-versus-text memory weights
 - `familiarisation.observation_window_*` — how long the system watches
   before it starts alerting
 - `memory.promotion_repeat_count` — how many times a new pattern must

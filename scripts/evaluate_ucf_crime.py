@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 def main(dataset="UCF-Crime"):
     import yaml
+    from anomaly_detection.evaluation.logging_utils import configure_evaluation_logging
     from anomaly_detection.evaluation.bank import build_bank, load_bank
     from anomaly_detection.evaluation.dataset import (
         check_disjoint, discover_videos, load_annotations, validate_test_manifest,
@@ -33,11 +34,13 @@ def main(dataset="UCF-Crime"):
     parser.add_argument("--output-dir", "--output_dir", type=Path)
     if dataset == "XD-Violence":
         parser.add_argument("--dataset-root", type=Path,
-                            default=Path('/home/nverma/training_free_vad/Datasets/XDViolence'))
+                            default=ROOT.parent / 'Dataset/XDViolence')
         parser.add_argument("--preflight-only", action="store_true")
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    configure_evaluation_logging(include_logger=True)
     config = yaml.safe_load(args.config.read_text())
+    from anomaly_detection.reasoning.ollama_runtime import caption_session, resolve_model
+    resolve_model(config)
     settings = config["evaluation"]
     settings["dataset"] = dataset
     if dataset == "XD-Violence":
@@ -49,7 +52,9 @@ def main(dataset="UCF-Crime"):
                         annotation_file=str(root / 'annotations.txt'),
                         annotation_fps='native', llm_review=False,
                         annotation_source_indices='zero-based inclusive',
-                        memory_bank_path=('outputs/memory/xd_violence_windows_v2.npz'
+                        memory_bank_path=('outputs/memory/xd_violence_visual_text_v1.npz'
+                                          if config.get('memory', {}).get('representation') == 'visual_text'
+                                          else 'outputs/memory/xd_violence_windows_v2.npz'
                                           if config.get('temporal', {}).get('mode') == 'sliding_windows'
                                           else 'outputs/memory/xd_violence_normal.npz'),
                         output_dir='outputs/xd_violence_evaluation')
@@ -89,20 +94,21 @@ def main(dataset="UCF-Crime"):
 
     # Load model dependencies only after dataset/artifact preflight succeeds.
     from anomaly_detection.processing import VideoEventProcessor
-    processor = VideoEventProcessor(config, strict=True)
-    if bank is None:
-        bank, metadata = build_bank(processor, normal, config, bank_path)
-    if args.stage == "build-memory":
-        return
+    with caption_session(config):
+        processor = VideoEventProcessor(config, strict=True)
+        if bank is None:
+            bank, metadata = build_bank(processor, normal, config, bank_path)
+        if args.stage == "build-memory":
+            return
 
-    from anomaly_detection.evaluation.runner import evaluate
-    if args.output_dir:
-        output = configured_path(args.output_dir, "output_dir")
-    else:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        output = configured_path(None, "output_dir") / stamp
-    summary = evaluate(processor, bank, metadata, testing, annotations, config,
-                       bank_path, annotation_path, output)
+        from anomaly_detection.evaluation.runner import evaluate
+        if args.output_dir:
+            output = configured_path(args.output_dir, "output_dir")
+        else:
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            output = configured_path(None, "output_dir") / stamp
+        summary = evaluate(processor, bank, metadata, testing, annotations, config,
+                           bank_path, annotation_path, output)
     print(json.dumps(summary["overall"], indent=2))
     print(f"Results saved to: {output}")
 

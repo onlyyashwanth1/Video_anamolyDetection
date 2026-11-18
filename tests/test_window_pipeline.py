@@ -84,7 +84,8 @@ def test_action_evidence_detects_familiar_anomaly():
                          settings={"scoring_mode": "action"})
     assert not baseline.is_anomaly and result.is_anomaly
     assert result.component_scores["action_text_margin"] > 0
-    assert result.component_scores["memory_score"] == baseline.anomaly_score
+    assert "memory_score" not in result.component_scores
+    assert result.component_scores["combined_score"] == result.component_scores["action_score"]
     event.average_embedding = np.array([1., 0.])
     event.description = "normal"
     assert scorer.score(event)["action_score"] < .5

@@ -97,3 +97,68 @@ def test_xd_rejects_individual_ucf_path_overrides(xd_cli):
         cli.main("XD-Violence", args + ["--normal-dir", str(root / "Normal_Videos")])
     assert error.value.code == 2
     workers.assert_not_called()
+
+
+def test_xd_frozen_memory_reuses_source_and_only_processes_test(xd_cli, monkeypatch, tmp_path):
+    cli, root, args, workers, finalize = xd_cli
+    import anomaly_detection.evaluation.bank as banks
+    bank = tmp_path / "source.npz"
+    bank.touch()
+    loader = Mock(return_value=(None, {"normal_videos": [
+        {"name": "UCF_normal", "path": str(tmp_path / "UCF_normal.mp4")}]}))
+    monkeypatch.setattr(banks, "load_bank", loader)
+    cli.main("XD-Violence", args + ["--stage", "evaluate", "--frozen-reference-memory",
+                                    "--memory-bank-path", str(bank)])
+    assert loader.call_args.args[2] is None
+    assert len(workers.call_args.args[3]) == 2
+    assert finalize.call_args.args[1]["evaluation"]["frozen_reference_memory"] is True
+
+
+def test_xd_frozen_memory_rejects_reference_test_overlap(xd_cli, monkeypatch, tmp_path):
+    cli, root, args, workers, finalize = xd_cli
+    import anomaly_detection.evaluation.bank as banks
+    bank = tmp_path / "source.npz"
+    bank.touch()
+    monkeypatch.setattr(banks, "load_bank", Mock(return_value=(None, {"normal_videos": [
+        {"name": "Other.2002_label_B1", "path": str(root / "Testing_Video/Other.2002_label_B1.mp4")}]})))
+    with pytest.raises(ValueError, match="overlap"):
+        cli.main("XD-Violence", args + ["--stage", "evaluate", "--frozen-reference-memory",
+                                        "--memory-bank-path", str(bank)])
+    workers.assert_not_called()
+
+
+def test_xd_frozen_memory_requires_evaluate(xd_cli):
+    cli, root, args, workers, finalize = xd_cli
+    with pytest.raises(SystemExit):
+        cli.main("XD-Violence", args + ["--frozen-reference-memory"])
+    workers.assert_not_called()
+
+
+def test_visual_xd_defaults_use_xd_bank_not_ucf_config_bank(xd_cli):
+    cli, root, args, workers, finalize = xd_cli
+    path = Path(args[1])
+    config = yaml.safe_load(path.read_text())
+    config["memory"] = {"representation": "visual_text"}
+    config["evaluation"].update(memory_bank_path="outputs/memory/ucf_reference.npz",
+                                checkpoint_dir="outputs/checkpoints/ucf", output_dir="outputs/ucf")
+    path.write_text(yaml.safe_dump(config))
+    cli.main("XD-Violence", args)
+    assert finalize.call_args.args[6].name == "xd_violence_visual_text_v1.npz"
+    assert workers.call_args.args[2].name == "xd_violence_multi_gpu"
+    assert not finalize.call_args.args[1]["evaluation"].get("frozen_reference_memory")
+
+
+def test_ucf_cli_honors_configured_memory_and_checkpoints(xd_cli):
+    cli, root, args, workers, finalize = xd_cli
+    path = Path(args[1])
+    annotation = root / "ucf_annotations.txt"
+    annotation.write_text("Other.2002_label_A.mp4 Normal -1 -1\nOther.2002_label_B1.mp4 Fighting 1 3\n")
+    config = yaml.safe_load(path.read_text())
+    config["evaluation"].update(normal_dir=str(root / "Normal_Videos"), test_dir=str(root / "Testing_Video"),
+        annotation_file=str(annotation), memory_bank_path="outputs/memory/selected_visual_bank.npz",
+        checkpoint_dir="outputs/checkpoints/selected", output_dir="outputs/selected_evaluation")
+    path.write_text(yaml.safe_dump(config))
+    cli.main("UCF-Crime", ["--config", str(path), "--gpus", "0,1"])
+    assert finalize.call_args.args[6].name == "selected_visual_bank.npz"
+    assert workers.call_args.args[2].name == "selected"
+    assert finalize.call_args.args[8].parent.name == "selected_evaluation"

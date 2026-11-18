@@ -16,12 +16,12 @@ if [[ "${1:-}" == "--inside-screen" ]]; then
     printf ' %q' "$VAD_PYTHON" -u scripts/evaluate_ucf_multi_gpu.py \
         --config config/ucf_ollama.yaml \
         --checkpoint-dir outputs/checkpoints/ucf_ollama \
-        --memory-bank-path outputs/memory/ucf_ollama.npz "$@"
+        "$@"
     printf '\n'
     "$VAD_PYTHON" -u scripts/evaluate_ucf_multi_gpu.py \
         --config config/ucf_ollama.yaml \
         --checkpoint-dir outputs/checkpoints/ucf_ollama \
-        --memory-bank-path outputs/memory/ucf_ollama.npz "$@" &
+        "$@" &
     VAD_JOB_PID=$!
     echo "$VAD_JOB_PID" > "$VAD_RUN_DIR/evaluator.pid"
     trap 'kill -TERM "$VAD_JOB_PID" 2>/dev/null || true' HUP INT TERM
@@ -54,7 +54,7 @@ fi
 # Validate local model files, annotations and all video metadata before detaching.
 "$VAD_PYTHON" scripts/evaluate_ucf_multi_gpu.py --config config/ucf_ollama.yaml \
     --checkpoint-dir outputs/checkpoints/ucf_ollama \
-    --memory-bank-path outputs/memory/ucf_ollama.npz "$@" --dry-run
+    "$@" --dry-run
 VAD_RUN_DIR="$VAD_ROOT/outputs/screen_runs/$VAD_SESSION-$(date -u +%Y%m%dT%H%M%S)-$$"
 mkdir -p "$VAD_RUN_DIR"
 export VAD_PYTHON VAD_SESSION

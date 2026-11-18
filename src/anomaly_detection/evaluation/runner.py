@@ -11,6 +11,7 @@ from anomaly_detection.evaluation.bank import file_digest
 from anomaly_detection.evaluation.dataset import NATIVE_END_TOLERANCE, expand_events, expand_windows, frame_labels, manifest
 from anomaly_detection.evaluation.metrics import compute_metrics, save_curves
 from anomaly_detection.inference.adaptive_inference import score_event
+from anomaly_detection.inference.frame_projection import project_window_scores
 from anomaly_detection.reasoning.llm_reasoning import explain_anomaly
 
 LOGGER = logging.getLogger(__name__)
@@ -40,6 +41,11 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
         action_scorer = ActionScorer(processor.encoder, inference.get("action", {}))
     windows = config.get("temporal", {}).get("mode", "events") == "sliding_windows"
     expand = expand_windows if windows else expand_events
+    temporal = config.get("temporal", {})
+    score_expansion = "mean of overlapping windows" if windows else "event value held until next event start, including final tail"
+    if windows and (temporal.get("score_pooling", "mean") != "mean" or temporal.get("smoothing_seconds", 0)):
+        score_expansion = (f"{temporal.get('score_pooling', 'mean')} of overlapping windows; "
+                           f"{temporal.get('smoothing_seconds', 0)} seconds centered nearest-padded boxcar")
     metadata = {
         "status": "running", "started_utc": datetime.now(timezone.utc).isoformat(),
         "config": config, "memory_path": str(Path(bank_path).resolve()),
@@ -49,9 +55,13 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
         "test_videos": manifest(test_videos), "annotation_fps": annotation_fps,
         "evaluation_grid": "all original video frames",
         "annotation_native_end_tolerance_frames": NATIVE_END_TOLERANCE,
-        "score_expansion": "mean of overlapping windows" if windows else "event value held until next event start, including final tail",
+        "score_expansion": score_expansion,
         "memory_updates_during_testing": False,
         "metric_protocol": "pooled frame-level ROC-AUC; fixed-threshold metrics; optional Gemma decisions",
+        "reference_protocol": ("frozen source-domain memory; no target-domain memory adaptation"
+                               if settings.get("frozen_reference_memory") else "target-domain normal reference memory"),
+        "reference_memory_source_dataset": bank_metadata.get("config", {}).get("evaluation", {}).get("dataset"),
+        "reference_normal_video_count": bank_metadata["normal_video_count"],
     }
     write_json(folder / "run.json", metadata)
     scores_all, labels_all, reviewed_all = [], [], []
@@ -82,7 +92,9 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
                     "final_anomaly": result.is_anomaly, "closest_match": result.closest_match,
                     "explanation": result.explanation,
                 })
-            scores = np.clip(expand(video.events, np.asarray(event_scores, dtype=float), video.frame_count), 0, 1)
+            scores = (project_window_scores(video.events, event_scores, video.frame_count,
+                                             video.fps, config.get("temporal", {})) if windows else
+                      np.clip(expand(video.events, np.asarray(event_scores, dtype=float), video.frame_count), 0, 1))
             reviewed = ((expand(video.events, np.asarray(decisions, dtype=float), video.frame_count) > 0.5)
                         if review else scores > threshold).astype(np.uint8)
             per_video[name] = {"category": annotations[name].category,

@@ -1,0 +1,53 @@
+# Live "observe, then detect" mode for ONE video (branch live-memory-40).
+# The first 40% of the video is watched without alerts and becomes this scene's
+# normal memory. Every later window is scored only against that memory.
+# No saved reference bank and no anomaly prompts are used.
+video:
+  target_fps: 1.0
+encoder:
+  model_name: openai/clip-vit-large-patch14
+masking:
+  enabled: false            # unmasked CLIP: masking hurt memory novelty (2026-11-08 ablation)
+temporal:
+  mode: sliding_windows
+  window_seconds: 4.0
+  stride_seconds: 1.0
+captioning:
+  mode: frame_captions_then_summary
+  max_frames_per_window: 4
+segmentation:               # unused in sliding-window mode; kept for the shared processor
+  coarse_threshold: 0.9
+  fine_threshold: 0.95
+live:
+  observe_fraction: 0.4     # or replace with observe_seconds: 60
+  min_memory_windows: 8
+  k: 10                     # nearest memory windows per query
+  centering: false          # true = subtract the scene mean, then re-normalise. That helped across
+                            # videos, but it discards how FAR a window moved, so it is off here.
+  calibration_guard_seconds: 4.0
+  text_encoder: sentence-transformers/all-mpnet-base-v2   # "clip" uses CLIP text instead
+  visual_weight: 1.0
+  text_weight: 1.0
+  judge_weight: 1.0         # memory-aware Gemma judge (B+J); 0 = memory distances only
+  judge:
+    enabled: true
+    memories: 8
+  fusion: mean              # median = at least 2 of visual/caption/judge must agree
+                            # (ignores camera cuts, may miss purely visual events)
+  threshold: 3.0            # alert when deviation > 3 robust spreads above normal
+  explain_anomalies: false  # true: one extra Gemma call per anomaly cue for a "Why:" line
+  srt:
+    cue_seconds: 4.0
+    colors: true            # <font color> tags (VLC, mpv); false for plain text
+reasoning:
+  backend: ollama
+  model: gemma4:31b-it-q8_0
+  base_port: 11600          # different block from the benchmark runs (11500)
+  timeout: 1200
+  load_timeout: 15m
+  num_thread: 4
+  startup_timeout: 120
+  num_ctx: 4096
+  temperature: 0
+  seed: 0
+  models_dir: /home/atripathi/.ollama/models

@@ -24,7 +24,7 @@ DEFAULT_CANDIDATE_LABELS = [
 ]
 
 
-def caption_windows(events, encoder, raw_frames, settings=None, strict=False):
+def caption_windows(events, encoder, raw_frames, settings=None, strict=False, cache=None):
     """Caption selected frames once per video, then summarize in temporal order."""
     from anomaly_detection.reasoning import local_gemma
 
@@ -32,7 +32,8 @@ def caption_windows(events, encoder, raw_frames, settings=None, strict=False):
     maximum = settings.get("max_frames_per_window", 4)
     if not isinstance(maximum, int) or maximum < 1:
         raise ValueError("max_frames_per_window must be a positive integer")
-    cache = {}
+    # Pass a dict to reuse frame captions across calls (live, window-by-window captioning).
+    cache = {} if cache is None else cache
     for event in events:
         indices = event.frame_indices
         if not indices:

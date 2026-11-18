@@ -10,6 +10,16 @@ from anomaly_detection.segmentation.temporal_decomposition import build_event_tr
 from anomaly_detection.segmentation.sliding_windows import build_sliding_windows
 
 
+class _NoMasking:
+    enabled = False
+
+    def reset_tracking(self):
+        pass
+
+    def mask_frame(self, frame):
+        return frame
+
+
 @dataclass
 class ProcessedVideo:
     events: list
@@ -30,7 +40,12 @@ class VideoEventProcessor:
         self.config = config
         self.strict = strict
         self.encoder = MultiScaleClipEncoder(model_name=config["encoder"]["model_name"])
-        self.masker = SpatialObjectMasker(strict=strict)
+        # Masking defaults on; the live self-memory config turns it off because
+        # background blur hurts memory novelty (masking ablation, 2026-11-08).
+        if config.get("masking", {}).get("enabled", True):
+            self.masker = SpatialObjectMasker(strict=strict)
+        else:
+            self.masker = _NoMasking()
 
     def process(self, source, caption=True):
         import cv2

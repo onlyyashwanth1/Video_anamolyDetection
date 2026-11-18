@@ -1,5 +1,10 @@
 # Video Anomaly Detection — Training-Free, Domain-Independent Framework
 
+> **Branch `live-memory-40`:** single-video live mode. The first 40% of a video
+> builds its own normal memory, and the rest is tested against it, producing an SRT
+> with captions and NORMAL/ANOMALY labels. Run `scripts/run_live_memory.py`; see
+> [docs/LIVE_MEMORY40.md](docs/LIVE_MEMORY40.md).
+
 The new [shared model configuration](config/shared_best.yaml) reaches **83.12%
 UCF-Crime ROC-AUC** and **71.76% XD-Violence AP**, using identical model settings
 on both datasets and no reference memory bank. These are offline benchmark

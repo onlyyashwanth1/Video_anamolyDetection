@@ -6,11 +6,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from anomaly_detection.evaluation.bank import build_visual_bank, load_bank
-from anomaly_detection.inference.action_scoring import ActionScorer
-from anomaly_detection.inference.adaptive_inference import score_event
-from anomaly_detection.memory.visual_memory import NeighborIndex, calibrate, fit_calibration
-from anomaly_detection.utils.types import EventChunk
+from anomaly_detection.memory.store import build_bank, load_bank
+from anomaly_detection.scoring.action import ActionMemoryScorer, ActionScorer
+from anomaly_detection.memory.visual_text import NeighborIndex, calibrate, fit_calibration
+from anomaly_detection.datatypes import EventChunk
 
 
 def unit(rows):
@@ -86,7 +85,7 @@ def test_calibration_finite_for_constant_normals():
 
 def test_visual_bank_persistence_and_scalar_scoring(tmp_path):
     config = {"encoder": {}, "video": {"target_fps": 1}, "segmentation": {},
-              "familiarisation": {"min_caption_occurrences": 1}, "memory": {"representation": "visual_text"}}
+              "memory_bank": {"min_caption_occurrences": 1}}
     normals = {}
     for i in range(6):
         p = tmp_path / f"normal_{i}.mp4"; p.touch(); normals[p.stem] = p
@@ -96,8 +95,8 @@ def test_visual_bank_persistence_and_scalar_scoring(tmp_path):
         i = int(Path(path).stem.split("_")[-1])
         return SimpleNamespace(events=[EventChunk(0, 1, 0, 1, description=str(i % 2),
                                average_embedding=vectors[i % 2], stop_frame=2)])
-    bank, metadata = build_visual_bank(SimpleNamespace(process=process, encoder=encoder), normals,
-                                      config, tmp_path / "bank.npz")
+    bank, metadata = build_bank(SimpleNamespace(process=process, encoder=encoder), normals,
+                                config, tmp_path / "bank.npz")
     reference = {v["name"] for v in metadata["reference_videos"]}
     calibration = {v["name"] for v in metadata["calibration_videos"]}
     assert not reference & calibration
@@ -105,7 +104,13 @@ def test_visual_bank_persistence_and_scalar_scoring(tmp_path):
     restored, _ = load_bank(tmp_path / "bank.npz", config, normals)
     np.testing.assert_array_equal(restored.visual_embeddings, bank.visual_embeddings)
     event = process(normals["normal_0"]).events[0]
-    result = score_event(event, restored, .5, encoder=encoder, settings={"memory_image_weight": 1})
+    settings = {"memory_weight": 1.0, "memory_image_weight": 1, "threshold": .5,
+                "normal_prompts": ["0"], "anomalous_prompts": ["1"]}
+    result = ActionMemoryScorer(settings, encoder, restored).score_event(event)
     assert result.anomaly_score == result.component_scores["memory_image_score"]
-    with pytest.raises(ValueError, match="representation"):
-        load_bank(tmp_path / "bank.npz", {**config, "memory": {}})
+    with pytest.raises(ValueError, match="settings differ"):
+        load_bank(tmp_path / "bank.npz", {**config, "memory_bank": {"top_k": 3}})
+    with pytest.raises(ValueError, match="features"):
+        load_bank(tmp_path / "bank.npz", {**config, "video": {"target_fps": 2}})
+    with pytest.raises(FileExistsError):
+        build_bank(SimpleNamespace(process=process, encoder=encoder), normals, config, tmp_path / "bank.npz")

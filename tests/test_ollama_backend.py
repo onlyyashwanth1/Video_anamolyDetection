@@ -10,9 +10,9 @@ from contextlib import contextmanager
 from PIL import Image
 import pytest
 
-from anomaly_detection.reasoning import local_gemma as gemma
+from anomaly_detection.reasoning import gemma as gemma
 from anomaly_detection.reasoning import ollama_runtime as runtime
-from anomaly_detection.evaluation.bank import model_spec
+from anomaly_detection.memory.store import feature_spec as model_spec
 
 
 def response(value):

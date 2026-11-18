@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from anomaly_detection.inference.frame_projection import project_window_scores
+from anomaly_detection.temporal.projection import project_window_scores
 
 
 def test_smoothing_matches_explicit_padded_convolution():

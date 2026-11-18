@@ -1,0 +1,11 @@
+# CUHK Avenue, prepared by scripts/prepare_avenue.py (UCF-style layout). Clean held-out test.
+# Ollama ports differ per dataset so runs can share a machine.
+evaluation:
+  dataset: Avenue
+  normal_dir: /home/atripathi/prudhvi/Dataset/Avenue/Normal_Videos
+  test_dir: /home/atripathi/prudhvi/Dataset/Avenue/Testing_Video
+  annotation_file: /home/atripathi/prudhvi/Dataset/Avenue/Temporal_Anomaly_Annotation.txt
+  memory_bank_path: outputs/memory/avenue_unmasked_v1.npz
+  checkpoint_dir: outputs/checkpoints/avenue_unmasked
+reasoning:
+  base_port: 11800

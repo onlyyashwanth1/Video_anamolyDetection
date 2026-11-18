@@ -1,0 +1,44 @@
+# Shared settings for every architecture and dataset.
+# An architecture file (config/architectures/) extends this file; evaluate.py then
+# merges a dataset file (config/datasets/) on top. See src/anomaly_detection/config.py.
+#
+# Perception: 1 frame/s, 4 s windows with a 1 s stride, unmasked CLIP ViT-L/14
+# (multi-scale), Gemma captions of up to 4 frames per window summarized in time.
+# memory_bank: the saved normal-memory bank built from a dataset's normal videos
+# (80% reference exemplars, 20% held out to calibrate distances).
+video:
+  target_fps: 1.0
+encoder:
+  model_name: openai/clip-vit-large-patch14
+temporal:
+  mode: sliding_windows
+  window_seconds: 4.0
+  stride_seconds: 1.0
+captioning:
+  mode: frame_captions_then_summary
+  max_frames_per_window: 4
+segmentation:
+  coarse_threshold: 0.9
+  fine_threshold: 0.95
+memory_bank:
+  min_caption_occurrences: 1
+  top_k: 10
+  calibration_fraction: 0.2
+  calibration_seed: 42
+  calibration_windows_per_video: 256
+  search_device: cuda:0
+reasoning:
+  backend: ollama
+  model: gemma4:31b-it-q8_0
+  base_port: 11500
+  timeout: 1200
+  load_timeout: 15m
+  num_thread: 4
+  startup_timeout: 120
+  num_ctx: 4096
+  temperature: 0
+  seed: 0
+  models_dir: /home/atripathi/.ollama/models
+evaluation:
+  annotation_fps: native
+  llm_review: false

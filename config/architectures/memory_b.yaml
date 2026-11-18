@@ -1,0 +1,18 @@
+# Memory novelty B (memory only, no prompts): Model B of the 2026-11-08 memory-only search.
+# B = z(centered MPNet caption 1-NN novelty) + 0.25 * z(CLIP image 1-NN novelty),
+# z-scored against the normal memory with each memory video left out.
+# Frames: mean of covering windows, smoothed over min(36 s, video length / 4). Offline only.
+# threshold_z: alert when the smoothed score exceeds this z (not tuned; AUC/AP ignore it).
+extends:
+- ../base.yaml
+architecture: memory_novelty
+temporal:
+  score_pooling: mean
+  smoothing_seconds: 36.0
+  smoothing_divisor: 4
+memory_novelty:
+  text_encoder: sentence-transformers/all-mpnet-base-v2
+  centering_alpha: 1.0
+  image_weight: 0.25
+  judge_weight: 0.0
+  threshold_z: 3.0

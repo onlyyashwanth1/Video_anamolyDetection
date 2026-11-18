@@ -1,0 +1,16 @@
+# Basic observe-then-detect model (the starting idea). Single videos only.
+# The first observation_fraction of the video is captioned and becomes this scene's
+# normal memory; every later window is scored against it (scoring/observe_detect.py).
+# Flagged windows get a Gemma verdict and explanation when llm_review is true.
+# The very first version used temporal.mode: events and captioning.mode: middle_frame.
+extends:
+- ../base.yaml
+architecture: observe_detect
+observe_detect:
+  observation_fraction: 0.4
+  min_caption_occurrences: 1
+  top_k: 10
+  threshold: 0.5
+  llm_review: true
+  allow_anomaly_promotion: false
+  promotion_repeat_count: 3

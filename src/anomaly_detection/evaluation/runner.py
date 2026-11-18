@@ -1,4 +1,10 @@
-"""Orchestrate complete-video evaluation against a fixed normal memory bank."""
+"""Complete-video benchmark evaluation for the window architectures (action, memory_novelty).
+
+For each test video: score every window with the configured scorer, project the
+window scores onto every original frame (temporal/projection.py), map them to
+[0, 1] with scorer.unit, and compare with the frame labels. Memory is never
+updated during testing.
+"""
 
 from datetime import datetime, timezone
 import json
@@ -7,12 +13,12 @@ from pathlib import Path
 
 import numpy as np
 
-from anomaly_detection.evaluation.bank import file_digest
-from anomaly_detection.evaluation.dataset import NATIVE_END_TOLERANCE, expand_events, expand_windows, frame_labels, manifest
+from anomaly_detection.evaluation.dataset import NATIVE_END_TOLERANCE, frame_labels, manifest
 from anomaly_detection.evaluation.metrics import compute_metrics, save_curves
-from anomaly_detection.inference.adaptive_inference import score_event
-from anomaly_detection.inference.frame_projection import project_window_scores
-from anomaly_detection.reasoning.llm_reasoning import explain_anomaly
+from anomaly_detection.memory.store import file_digest
+from anomaly_detection.reasoning.explain import explain_anomaly
+from anomaly_detection.scoring import architecture, build_scorer
+from anomaly_detection.temporal.projection import expand_events, expand_windows, project_window_scores
 
 LOGGER = logging.getLogger(__name__)
 
@@ -22,7 +28,7 @@ def write_json(path, value):
 
 
 def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
-             bank_path, annotation_path, output_dir):
+             bank_path, annotation_path, output_dir, scorer=None):
     folder = Path(output_dir)
     if folder.exists() and any(folder.iterdir()):
         raise FileExistsError(f"Results folder is not empty: {folder}; choose a new output directory")
@@ -30,26 +36,28 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
     predictions = folder / "predictions"
     predictions.mkdir()
     settings = config["evaluation"]
-    threshold = float(config["inference"]["anomaly_threshold"])
-    review = settings.get("llm_review", True)
+    review = settings.get("llm_review", False)
     annotation_fps = settings.get("annotation_fps", "native")
-    constitution = [entry.text for entry in bank.entries]
-    inference = config["inference"]
-    action_scorer = None
-    if inference.get("scoring_mode", "memory") != "memory":
-        from anomaly_detection.inference.action_scoring import ActionScorer
-        action_scorer = ActionScorer(processor.encoder, inference.get("action", {}))
-    windows = config.get("temporal", {}).get("mode", "events") == "sliding_windows"
-    expand = expand_windows if windows else expand_events
+    constitution = [entry.text for entry in bank.entries] if bank is not None else []
+    scorer = scorer or build_scorer(config, processor.encoder, bank, bank_path)
+    threshold = float(scorer.threshold)
     temporal = config.get("temporal", {})
-    score_expansion = "mean of overlapping windows" if windows else "event value held until next event start, including final tail"
-    if windows and (temporal.get("score_pooling", "mean") != "mean" or temporal.get("smoothing_seconds", 0)):
-        score_expansion = (f"{temporal.get('score_pooling', 'mean')} of overlapping windows; "
-                           f"{temporal.get('smoothing_seconds', 0)} seconds centered nearest-padded boxcar")
+    windows = temporal.get("mode", "events") == "sliding_windows"
+    if windows:
+        score_expansion = (f"{temporal.get('score_pooling', 'mean')} of overlapping windows; smoothing "
+                           f"{temporal.get('smoothing_seconds', 0)} s"
+                           + (f", capped at video length / {temporal['smoothing_divisor']}"
+                              if temporal.get("smoothing_divisor") else "")
+                           + " (centered, nearest-padded boxcar)")
+    else:
+        score_expansion = "event value held until next event start, including final tail"
+    bank_metadata = bank_metadata or {}
     metadata = {
         "status": "running", "started_utc": datetime.now(timezone.utc).isoformat(),
-        "config": config, "memory_path": str(Path(bank_path).resolve()),
-        "memory_sha256": file_digest(bank_path), "memory_created_utc": bank_metadata["created_utc"],
+        "architecture": architecture(config), "config": config,
+        "memory_path": str(Path(bank_path).resolve()) if bank_path else None,
+        "memory_sha256": file_digest(bank_path) if bank_path else None,
+        "memory_created_utc": bank_metadata.get("created_utc"),
         "annotation_path": str(Path(annotation_path).resolve()),
         "annotation_sha256": file_digest(annotation_path),
         "test_videos": manifest(test_videos), "annotation_fps": annotation_fps,
@@ -58,10 +66,11 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
         "score_expansion": score_expansion,
         "memory_updates_during_testing": False,
         "metric_protocol": "pooled frame-level ROC-AUC; fixed-threshold metrics; optional Gemma decisions",
-        "reference_protocol": ("frozen source-domain memory; no target-domain memory adaptation"
+        "reference_protocol": ("no memory bank" if bank is None else
+                               "frozen source-domain memory; no target-domain memory adaptation"
                                if settings.get("frozen_reference_memory") else "target-domain normal reference memory"),
         "reference_memory_source_dataset": bank_metadata.get("config", {}).get("evaluation", {}).get("dataset"),
-        "reference_normal_video_count": bank_metadata["normal_video_count"],
+        "reference_normal_video_count": bank_metadata.get("normal_video_count", 0),
     }
     write_json(folder / "run.json", metadata)
     scores_all, labels_all, reviewed_all = [], [], []
@@ -73,16 +82,14 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
             LOGGER.info("Test [%d/%d] %s", index, len(test_videos), name)
             video = processor.process(str(path))
             labels = frame_labels(annotations[name], video.frame_count, video.fps, annotation_fps)
-            event_scores, decisions, event_records = [], [], []
-            for event in video.events:
-                result = score_event(event, bank, threshold, encoder=processor.encoder,
-                                     action_scorer=action_scorer, settings=inference)
-                # Use the saved continuous score consistently for threshold reporting.
-                result.is_anomaly = result.anomaly_score > threshold
+            results = scorer.score_video(video.events, video.frame_count, video.fps)
+            window_scores, decisions, event_records = [], [], []
+            for event, result in zip(video.events, results):
+                result.is_anomaly = bool(scorer.unit(result.anomaly_score) > threshold)
                 raw_decision = result.is_anomaly
                 if review and raw_decision:
                     result = explain_anomaly(result, constitution, strict=True)
-                event_scores.append(result.anomaly_score)
+                window_scores.append(result.anomaly_score)
                 decisions.append(result.is_anomaly)
                 event_records.append({
                     "start_frame": event.start_frame, "last_sample_frame": event.end_frame,
@@ -92,9 +99,14 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
                     "final_anomaly": result.is_anomaly, "closest_match": result.closest_match,
                     "explanation": result.explanation,
                 })
-            scores = (project_window_scores(video.events, event_scores, video.frame_count,
-                                             video.fps, config.get("temporal", {})) if windows else
-                      np.clip(expand(video.events, np.asarray(event_scores, dtype=float), video.frame_count), 0, 1))
+            window_scores = np.asarray(window_scores, dtype=float)
+            if windows:
+                projected = project_window_scores(video.events, window_scores, video.frame_count,
+                                                  video.fps, temporal, clip=False)
+            else:
+                projected = expand_events(video.events, window_scores, video.frame_count)
+            scores = np.asarray(scorer.unit(projected), dtype=float)
+            expand = expand_windows if windows else expand_events
             reviewed = ((expand(video.events, np.asarray(decisions, dtype=float), video.frame_count) > 0.5)
                         if review else scores > threshold).astype(np.uint8)
             per_video[name] = {"category": annotations[name].category,
@@ -115,11 +127,12 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
         if len(np.unique(labels)) != 2:
             raise ValueError("Overall ROC-AUC needs both normal and anomalous frames")
         summary = {
+            "architecture": architecture(config),
             "videos_evaluated": len(test_videos),
             "normal_videos": sum(not a.ranges for a in annotations.values()),
             "anomalous_videos": sum(bool(a.ranges) for a in annotations.values()),
-            "normal_memory_videos": bank_metadata["normal_video_count"],
-            "memory_entries": len(bank),
+            "normal_memory_videos": bank_metadata.get("normal_video_count", 0),
+            "memory_entries": len(bank) if bank is not None else 0,
             "overall": compute_metrics(labels, scores, threshold,
                                        np.concatenate(reviewed_all) if review else None),
             "per_video": per_video,
@@ -127,10 +140,11 @@ def evaluate(processor, bank, bank_metadata, test_videos, annotations, config,
                 "ROC-AUC uses continuous scores before Gemma verdict review, not binary flags.",
                 "AUC is pooled across all frames, not averaged across videos.",
                 "Single-class videos have null ROC-AUC and AP.",
-                "This evaluates the project's normal-memory method, not a reproduction of either paper.",
                 "The supplied dataset and split size are recorded in run.json.",
             ],
         }
+        if getattr(getattr(scorer, "judge", None), "calibration", None):
+            summary["judge_calibration"] = scorer.judge.calibration
         save_curves(labels, scores, folder, settings.get("dataset", "UCF-Crime"))
         write_json(folder / "summary.json", summary)
         metadata.update(status="complete", completed_utc=datetime.now(timezone.utc).isoformat())

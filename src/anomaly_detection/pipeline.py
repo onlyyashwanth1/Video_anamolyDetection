@@ -1,115 +1,63 @@
-"""
-Pipeline orchestrator - wires together every module in the order described in the paper.
+"""Single-video entry point for all three architectures.
+
+run_full_pipeline(source, config) -> (normal captions, memory bank, per-window results)
+
+observe_detect builds its memory from the start of this video and scores the rest.
+action and memory_novelty score every window against the saved normal-memory
+bank named by evaluation.memory_bank_path (action with memory_weight 0 needs none).
 """
 
-import math
-from collections import Counter
-from typing import List, Tuple
 from pathlib import Path
-import yaml
+from typing import List, Tuple
 
-from anomaly_detection.processing import VideoEventProcessor
-from anomaly_detection.familiarisation.domain_familiarisation import (
-    build_domain_constitution, embed_constitution,
-)
-from anomaly_detection.memory.memory_bank import MemoryBank
-from anomaly_detection.inference.adaptive_inference import score_event
-from anomaly_detection.reasoning.llm_reasoning import explain_anomaly
-from anomaly_detection.utils.types import AnomalyResult
+from anomaly_detection.config import load_config  # noqa: F401  (re-exported for scripts)
+from anomaly_detection.datatypes import AnomalyResult
+from anomaly_detection.memory.bank import MemoryBank
+from anomaly_detection.perception.processor import VideoEventProcessor
+from anomaly_detection.reasoning.explain import explain_anomaly
+from anomaly_detection.scoring import architecture, build_scorer, needs_bank
+from anomaly_detection.scoring.observe_detect import run_observe_detect
 
-
-def load_config(path: str) -> dict:
-    with open(path, "r") as f:
-        return yaml.safe_load(f)
+ROOT = Path(__file__).resolve().parents[2]
 
 
-def run_steps_1_to_3(video_source, config: dict):
+def bank_path(config):
+    path = Path(config["evaluation"]["memory_bank_path"]).expanduser()
+    return path if path.is_absolute() else ROOT / path
+
+
+def run_full_pipeline(video_source, config) -> Tuple[List[str], MemoryBank, List[AnomalyResult]]:
+    from anomaly_detection.memory import store
+    from anomaly_detection.reasoning import ollama_runtime
+
+    architecture(config)
+    bank = None
+    if needs_bank(config):
+        # Load the saved bank before starting any caption models.
+        ollama_runtime.resolve_model(config)
+        bank, _ = store.load_bank(bank_path(config), config)
+    with ollama_runtime.caption_session(config):
+        return _run(video_source, config, bank)
+
+
+def _run(video_source, config, bank=None):
     processor = VideoEventProcessor(config)
     video = processor.process(video_source, caption=False)
-    return video.events, processor.encoder, video.frames, video.encoded_frames
-
-
-def run_full_pipeline(video_source, config: dict) -> Tuple[List[str], MemoryBank, List[AnomalyResult]]:
-    from anomaly_detection.evaluation.bank import load_bank
-    from anomaly_detection.reasoning.ollama_runtime import caption_session, resolve_model
-
-    memory_bank = None
-    action_only = config.get("inference", {}).get("scoring_mode") == "action"
-    if not action_only and config.get("memory", {}).get("representation", "text") == "visual_text":
-        # Load the calibrated reference bank before starting any caption models.
-        # Rebuilding text memory from the first 40% silently changes the selected model.
-        if config["memory"].get("allow_anomaly_promotion", False):
-            raise ValueError("Visual reference memory does not support automatic text-only promotion")
-        resolve_model(config)
-        path = Path(config["evaluation"]["memory_bank_path"]).expanduser()
-        if not path.is_absolute():
-            path = Path(__file__).resolve().parents[2] / path
-        memory_bank, _ = load_bank(path, config)
-    with caption_session(config):
-        return _run_full_pipeline(video_source, config, memory_bank)
-
-
-def _run_full_pipeline(video_source, config, memory_bank=None):
-    processor = VideoEventProcessor(config)
-    video = processor.process(video_source, caption=False)
-    tree, encoder, raw_frames = video.events, processor.encoder, video.frames
-
-    action_only = config.get("inference", {}).get("scoring_mode") == "action"
-    if not action_only and memory_bank is None and len(tree) < 2:
-        raise ValueError(
-            f"Only found {len(tree)} top-level event(s) - need at least 2."
-        )
-
-    if action_only:
-        if not tree:
-            raise ValueError("No video windows to score")
-        live_events = tree
-        processor.caption_events(live_events, raw_frames)
-        constitution = []
-        memory_bank = MemoryBank()
-    elif memory_bank is not None:
-        if not tree:
-            raise ValueError("No video windows to score")
-        # The saved bank supplies normality. Score the whole input, including its beginning.
-        live_events = tree
-        processor.caption_events(live_events, raw_frames)
-        constitution = [entry.text for entry in memory_bank.entries]
-    else:
-        if config.get("temporal", {}).get("mode", "events") == "sliding_windows":
-            from anomaly_detection.segmentation.sliding_windows import split_familiarisation
-            familiarisation_events, live_events = split_familiarisation(
-                tree, config["familiarisation"]["observation_fraction"], video.frame_count)
-        else:
-            split_index = max(1, math.ceil(len(tree) * config["familiarisation"]["observation_fraction"]))
-            split_index = min(split_index, len(tree) - 1)
-            familiarisation_events, live_events = tree[:split_index], tree[split_index:]
-
-        processor.caption_events(familiarisation_events, raw_frames)
-        processor.caption_events(live_events, raw_frames)
-        captions = [event.description for event in familiarisation_events]
-        counts = Counter(captions)
-        constitution = build_domain_constitution(
-            captions, min_occurrences=config["familiarisation"]["min_caption_occurrences"])
-        memory_entries = embed_constitution(constitution, encoder, occurrence_counts=counts)
-        memory_bank = MemoryBank(initial_entries=memory_entries)
-
-    threshold = config["inference"]["anomaly_threshold"]
-    action_scorer = None
-    if config["inference"].get("scoring_mode", "memory") != "memory":
-        from anomaly_detection.inference.action_scoring import ActionScorer
-        action_scorer = ActionScorer(encoder, config["inference"].get("action", {}))
-    results: List[AnomalyResult] = []
-    for event in live_events:
-        result = score_event(event, memory_bank, threshold, encoder=encoder,
-                             action_scorer=action_scorer, settings=config["inference"])
-
-        if result.is_anomaly:
-            if config.get("evaluation", {}).get("llm_review", True):
-                result = explain_anomaly(result, constitution)
-            if result.is_anomaly and config["memory"].get("allow_anomaly_promotion", False):
-                memory_bank.log_unmatched(event.description, encoder.encode_text(event.description))
-                memory_bank.try_promote(event.description, config["memory"]["promotion_repeat_count"])
-
+    if architecture(config) == "observe_detect":
+        settings = config["observe_detect"]
+        review = explain_anomaly if settings.get("llm_review", False) else None
+        return run_observe_detect(video, processor, settings,
+                                  config.get("temporal", {}).get("mode", "events"), review)
+    if not video.events:
+        raise ValueError("No video windows to score")
+    processor.caption_events(video.events, video.frames)
+    scorer = build_scorer(config, processor.encoder, bank, bank_path(config) if bank is not None else None)
+    constitution = [entry.text for entry in bank.entries] if bank is not None else []
+    review = config.get("evaluation", {}).get("llm_review", False)
+    results = []
+    for result in scorer.score_video(video.events, video.frame_count, video.fps):
+        result.is_anomaly = bool(scorer.unit(result.anomaly_score) > scorer.threshold)
+        if result.is_anomaly and review:
+            result = explain_anomaly(result, constitution)
         results.append(result)
-
-    return constitution, memory_bank, results
+    return constitution, bank if bank is not None else MemoryBank(), results

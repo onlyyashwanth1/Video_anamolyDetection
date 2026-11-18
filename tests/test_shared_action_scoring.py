@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from anomaly_detection.inference.action_scoring import ActionScorer
+from anomaly_detection.scoring.action import ActionScorer
 
 
 def encoder():

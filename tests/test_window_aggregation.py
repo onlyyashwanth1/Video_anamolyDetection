@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from anomaly_detection.evaluation.window_aggregation import aggregate_windows
+from anomaly_detection.temporal.projection import aggregate_windows
 
 
 def test_variable_coverage_matches_direct_statistics():

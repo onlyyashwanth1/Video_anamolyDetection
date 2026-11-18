@@ -7,14 +7,15 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from anomaly_detection.utils.types import Frame, EncodedFrame, MemoryEntry
-from anomaly_detection.segmentation.sliding_windows import build_sliding_windows, split_familiarisation
-from anomaly_detection.evaluation.dataset import expand_windows
-from anomaly_detection.familiarisation.domain_familiarisation import caption_windows
-from anomaly_detection.inference.action_scoring import ActionScorer
-from anomaly_detection.inference.adaptive_inference import score_event
-from anomaly_detection.memory.memory_bank import MemoryBank
-from anomaly_detection.evaluation.bank import model_spec, save_bank, load_bank
+from anomaly_detection.datatypes import Frame, EncodedFrame, MemoryEntry
+from anomaly_detection.perception.windows import build_sliding_windows, split_observation
+from anomaly_detection.temporal.projection import expand_windows
+from anomaly_detection.perception.captioner import caption_windows
+from anomaly_detection.scoring.action import ActionMemoryScorer, ActionScorer
+from anomaly_detection.scoring.observe_detect import score_event
+from anomaly_detection.memory.bank import MemoryBank
+from anomaly_detection.memory.store import feature_spec, memory_spec, save_bank, load_bank
+from anomaly_detection.memory.visual_text import VisualTextMemoryBank
 
 
 def samples(count, fps=10):
@@ -43,7 +44,7 @@ def test_overlap_averages_and_rejects_gaps():
 
 def test_observation_split_shares_no_frames():
     windows = build_sliding_windows(samples(200), 200, 10)
-    normal, live = split_familiarisation(windows, .4, 200)
+    normal, live = split_observation(windows, .4, 200)
     assert max(w.stop_frame for w in normal) <= min(w.start_frame for w in live)
     assert set(i for w in normal for i in w.frame_indices).isdisjoint(
         i for w in live for i in w.frame_indices)
@@ -54,8 +55,8 @@ def test_caption_cache_and_order(monkeypatch):
     gemma = MagicMock()
     gemma.generate_caption.side_effect = ["walking", "turning", "striking", "falling", "standing"]
     gemma.generate_text.return_value = "A person strikes another."
-    monkeypatch.setitem(sys.modules, "anomaly_detection.reasoning.local_gemma", gemma)
-    monkeypatch.setattr(reasoning, "local_gemma", gemma, raising=False)
+    monkeypatch.setitem(sys.modules, "anomaly_detection.reasoning.gemma", gemma)
+    monkeypatch.setattr(reasoning, "gemma", gemma, raising=False)
     encoded = samples(50)
     windows = build_sliding_windows(encoded, 50, 10)
     caption_windows(windows, None, [s.frame for s in encoded], strict=True)
@@ -80,8 +81,8 @@ def test_action_evidence_detects_familiar_anomaly():
     # Deliberately familiar visual/text evidence: memory alone must miss it.
     bank = MemoryBank([MemoryEntry("fight", np.array([0., 1.]))])
     baseline = score_event(event, bank, .5, encoder)
-    result = score_event(event, bank, .5, encoder, action_scorer=scorer,
-                         settings={"scoring_mode": "action"})
+    result = ActionMemoryScorer({"memory_weight": 0, "threshold": .5, "normal_prompts": ["normal"],
+                                 "anomalous_prompts": ["fight"]}, encoder).score_event(event)
     assert not baseline.is_anomaly and result.is_anomaly
     assert result.component_scores["action_text_margin"] > 0
     assert "memory_score" not in result.component_scores
@@ -93,12 +94,25 @@ def test_action_evidence_detects_familiar_anomaly():
 
 def test_memory_version_rejects_changed_caption_settings(tmp_path):
     config = {"encoder": {}, "video": {"target_fps": 1}, "segmentation": {},
-              "familiarisation": {"min_caption_occurrences": 1},
+              "temporal": {"mode": "sliding_windows", "window_seconds": 4.0, "stride_seconds": 1.0},
               "captioning": {"mode": "frame_captions_then_summary", "max_frames_per_window": 4}}
-    bank = MemoryBank([MemoryEntry("normal", np.array([1., 0.]))])
+    calibration = {"visual": {"center": .2, "scale": .1}, "text": {"center": .2, "scale": .1}}
+    bank = VisualTextMemoryBank([MemoryEntry("normal", np.array([1., 0.]))], np.array([[1., 0.]]),
+                                [0], ["a"], [0], calibration)
     path = tmp_path / "bank.npz"
-    save_bank(path, bank, {"schema": 1, "model_spec": model_spec(config)})
+    save_bank(path, bank, {"schema": 3, "feature_spec": feature_spec(config),
+                           "memory_spec": memory_spec(config), "calibration": calibration})
     load_bank(path, config)
+    # Scoring-only settings do not invalidate features.
+    load_bank(path, {**config, "temporal": {**config["temporal"], "smoothing_seconds": 12}})
     config["captioning"]["max_frames_per_window"] = 2
-    with pytest.raises(ValueError, match="different model"):
+    with pytest.raises(ValueError, match="different features"):
         load_bank(path, config)
+
+
+def test_old_masked_banks_are_refused(tmp_path):
+    path = tmp_path / "old.npz"
+    np.savez(path, metadata=np.asarray('{"schema": 2}'), embeddings=np.ones((1, 2)), texts=np.asarray(["a"]),
+             counts=np.ones(1))
+    with pytest.raises(ValueError, match="schema 2"):
+        load_bank(path, {})

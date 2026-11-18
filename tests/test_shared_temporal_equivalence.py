@@ -4,12 +4,11 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-import yaml
-
-from anomaly_detection.inference.frame_projection import project_window_scores
+from anomaly_detection.config import load_config
+from anomaly_detection.temporal.projection import project_window_scores
 
 ROOT = Path(__file__).resolve().parents[1]
-SETTINGS = yaml.safe_load((ROOT/'config/shared_best.yaml').read_text())['temporal']
+SETTINGS = load_config(ROOT/'config/architectures/shared_best.yaml')['temporal']
 
 
 def direct_native_reference(events, values, frame_count, fps, settings):

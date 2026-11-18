@@ -1,15 +1,15 @@
-"""
-Training-free, domain-independent video anomaly detection framework.
+"""Training-free video anomaly detection with frozen foundation models.
 
-Package layout mirrors the paper's pipeline, one module per stage:
-    ingestion         -> Step 1  (Live Input Stream)
-    encoding          -> Step 2  (Frozen Foundational Encoder / CLIP)
-    masking           -> Step 4  (Spatial Object-Centric Masking)
-    segmentation      -> Step 3  (Automated Temporal Decomposition / GEBD+HGTree)
-    familiarisation   -> Steps 5-6 (Domain Familiarisation / Domain Constitution)
-    memory            -> Step 7  (Dynamic Textual Memory Bank + familiarity counter)
-    inference         -> Steps 8-9 (Contrastive Probing + Soft Threshold Gating)
-    reasoning         -> Step 10 (LLM Temporal Summarization / Deduction)
+Layout:
+    perception/   video -> 1 fps frames -> CLIP window embeddings -> Gemma captions
+                  (+ MPNet caption embeddings for the memory architecture)
+    memory/       normal memory: per-video observation memory and the saved bank
+    scoring/      the three architectures: observe_detect, action, memory_novelty (B, B+J)
+    temporal/     window scores -> per-frame scores (pooling, smoothing)
+    reasoning/    Gemma via Ollama or Transformers; optional explanations
+    evaluation/   datasets, video cache, multi-GPU runner, metrics
+    pipeline.py   single-video entry point
+    config.py     layered YAML configs (config/base.yaml + architecture + dataset)
 
-See docs/PROJECT_STATUS.md for what's implemented vs. still a stub.
+See docs/ARCHITECTURES.md.
 """

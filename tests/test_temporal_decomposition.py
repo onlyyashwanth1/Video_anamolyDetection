@@ -14,8 +14,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from anomaly_detection.utils.types import Frame, EncodedFrame
-from anomaly_detection.segmentation.temporal_decomposition import build_event_tree
+from anomaly_detection.datatypes import Frame, EncodedFrame
+from anomaly_detection.perception.events import build_event_tree
 
 
 def unit(v):

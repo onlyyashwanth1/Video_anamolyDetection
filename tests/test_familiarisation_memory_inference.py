@@ -1,8 +1,7 @@
 """
-Sanity tests for Steps 5-9 (familiarisation, memory bank, adaptive
-inference) that do NOT require downloading CLIP - uses a small FakeEncoder
-with hand-crafted embeddings instead, so the logic can be verified before
-running against real video.
+Sanity tests for the basic observe-then-detect model (captioning fallback,
+observation memory, memory bank, scoring, Gemma review) that do NOT require
+downloading CLIP - a small FakeEncoder with hand-crafted embeddings is used.
 
 Run with:  python tests/test_familiarisation_memory_inference.py
        or:  pytest tests/
@@ -14,12 +13,11 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from anomaly_detection.utils.types import Frame, EventChunk
-from anomaly_detection.familiarisation.domain_familiarisation import (
-    caption_event, build_domain_constitution, embed_constitution,
-)
-from anomaly_detection.memory.memory_bank import MemoryBank
-from anomaly_detection.inference.adaptive_inference import score_event
+from anomaly_detection.datatypes import Frame, EventChunk
+from anomaly_detection.perception.captioner import caption_event
+from anomaly_detection.memory.observation import build_domain_constitution, embed_constitution
+from anomaly_detection.memory.bank import MemoryBank
+from anomaly_detection.scoring.observe_detect import score_event
 
 
 def unit(v):
@@ -90,7 +88,7 @@ def test_memory_bank_best_match_and_empty_case():
     entry, score = bank_empty.best_match(unit([1, 0]))
     assert entry is None and score == -1.0, "empty bank should report no match"
 
-    from anomaly_detection.utils.types import MemoryEntry
+    from anomaly_detection.datatypes import MemoryEntry
     bank = MemoryBank([
         MemoryEntry(text="empty room", embedding=unit([1, 0])),
         MemoryEntry(text="person walking", embedding=unit([0, 1])),
@@ -121,7 +119,7 @@ def test_memory_bank_promotion_requires_repeats():
 
 
 def test_score_event_flags_anomaly_correctly():
-    from anomaly_detection.utils.types import MemoryEntry
+    from anomaly_detection.datatypes import MemoryEntry
     bank = MemoryBank([MemoryEntry(text="empty room", embedding=unit([1, 0]))])
 
     normal_event = make_event([0.95, 0.05])   # very close to "empty room"
@@ -140,14 +138,14 @@ def test_explain_anomaly_gating():
     import sys
     from unittest.mock import MagicMock, patch
 
-    # Setup mock local_gemma module to bypass torch/transformers dependencies
+    # Mock the gemma module to bypass torch/transformers dependencies
     mock_local_gemma = MagicMock()
     import anomaly_detection.reasoning
     # Restore both import routes; leaving this mock installed breaks later backend tests.
-    with patch.dict(sys.modules, {"anomaly_detection.reasoning.local_gemma": mock_local_gemma}), \
-            patch.object(anomaly_detection.reasoning, "local_gemma", mock_local_gemma, create=True):
-        from anomaly_detection.reasoning.llm_reasoning import explain_anomaly
-        from anomaly_detection.utils.types import AnomalyResult
+    with patch.dict(sys.modules, {"anomaly_detection.reasoning.gemma": mock_local_gemma}), \
+            patch.object(anomaly_detection.reasoning, "gemma", mock_local_gemma, create=True):
+        from anomaly_detection.reasoning.explain import explain_anomaly
+        from anomaly_detection.datatypes import AnomalyResult
 
         # Mock AnomalyResult that is initially flagged
         event = make_event([0, 1])

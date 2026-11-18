@@ -1,0 +1,14 @@
+# B + J: memory novelty plus the memory-aware Gemma judge (judge_weight 1.0, chosen
+# from {0.25, 0.5, 1, 2} on UCF validation, XD validation and ShanghaiTech).
+# The judge sees the 8 most similar normal-memory captions, rates the new caption 0-9
+# (expected digit), and is z-scored against ratings of 2000 normal-memory windows.
+# Ratings are cached by prompt in outputs/judge_cache/.
+extends:
+- memory_b.yaml
+memory_novelty:
+  judge_weight: 1.0
+  judge:
+    memories: 8
+    calibration_windows: 2000
+    seed: 0
+    num_ctx: 2048

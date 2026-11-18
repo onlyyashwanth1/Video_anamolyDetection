@@ -1,4 +1,4 @@
-"""An action-only model needs neither reference data nor an observation prefix."""
+"""Action with memory_weight 0 needs neither a memory bank nor an observation prefix."""
 
 from contextlib import nullcontext
 from types import SimpleNamespace
@@ -7,9 +7,9 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from anomaly_detection.inference.action_scoring import ActionScorer
-from anomaly_detection.inference.adaptive_inference import score_event
-from anomaly_detection.utils.types import EventChunk
+from anomaly_detection.datatypes import EventChunk
+from anomaly_detection.scoring import needs_bank
+from anomaly_detection.scoring.action import ActionMemoryScorer, ActionScorer
 
 
 NORMAL = np.asarray([1., 0.], dtype=np.float32)
@@ -27,10 +27,9 @@ def encoder():
     return SimpleNamespace(encode_text=lambda text: NORMAL if text == 'walking' else ANOMALOUS)
 
 
-def settings():
-    return dict(scoring_mode='action', anomaly_threshold=.5,
-                action=dict(normal_prompts=['walking'], anomalous_prompts=['fight'],
-                            image_weight=.75, temperature=.1))
+def settings(memory_weight=0.0):
+    return dict(memory_weight=memory_weight, threshold=.5, normal_prompts=['walking'],
+                anomalous_prompts=['fight'], image_weight=.75, temperature=.1)
 
 
 class ForbiddenReference:
@@ -42,55 +41,55 @@ class ForbiddenReference:
 
 @pytest.mark.parametrize('reference', [None, ForbiddenReference()])
 def test_action_scoring_never_inspects_reference(reference):
-    config = settings()
-    scorer = ActionScorer(encoder(), config['action'])
+    scorer = ActionMemoryScorer(settings(), encoder(), reference)
     observed = event()
-    result = score_event(observed, reference, .5, action_scorer=scorer, settings=config)
+    result = scorer.score_event(observed)
     assert result.is_anomaly
-    assert result.anomaly_score == scorer.score(observed)['action_score']
+    assert result.anomaly_score == ActionScorer(encoder(), settings()).score(observed)['action_score']
     assert result.component_scores['combined_score'] == result.anomaly_score
     assert result.closest_match is None
     assert all(not k.startswith('memory') for k in result.component_scores)
 
 
-def test_action_scoring_requires_scorer_without_touching_reference():
-    with pytest.raises(ValueError, match='ActionScorer'):
-        score_event(event(), ForbiddenReference(), .5, settings=settings())
+def test_memory_weight_needs_a_bank():
+    assert not needs_bank({'architecture': 'action', 'action': settings(0.0)})
+    assert needs_bank({'architecture': 'action', 'action': settings(.05)})
+    with pytest.raises(ValueError, match='bank'):
+        ActionMemoryScorer(settings(.05), encoder(), None)
+
+
+@pytest.mark.parametrize('weight', [-.1, 1.5, float('nan')])
+def test_memory_weight_must_be_a_fraction(weight):
+    with pytest.raises(ValueError, match='memory_weight'):
+        ActionMemoryScorer(settings(weight), encoder(), None)
 
 
 @pytest.mark.parametrize('count', [1, 4])
 def test_pipeline_scores_every_window_without_loading_or_building_memory(monkeypatch, count):
     import anomaly_detection.pipeline as pipeline
-    import anomaly_detection.evaluation.bank as banks
+    import anomaly_detection.memory.store as store
     import anomaly_detection.reasoning.ollama_runtime as runtime
-    import anomaly_detection.segmentation.sliding_windows as windows
-    from anomaly_detection.memory.memory_bank import MemoryBank
+    from anomaly_detection.memory.bank import MemoryBank
 
     events = [event(i, anomalous=(i % 2 == 0)) for i in range(count)]
     processor = Mock()
     processor.encoder = encoder()
     raw_frames = [object()]
     processor.process.return_value = SimpleNamespace(events=events, frames=raw_frames,
-                                                      frame_count=count + 3)
+                                                      frame_count=count + 3, fps=1.0)
     monkeypatch.setattr(pipeline, 'VideoEventProcessor', Mock(return_value=processor))
     load_reference = Mock(side_effect=AssertionError('Reference file must not be read'))
-    build_constitution = Mock(side_effect=AssertionError('No input-video memory may be built'))
-    embed_constitution = Mock(side_effect=AssertionError('No input-video memory may be embedded'))
-    familiarisation = Mock(side_effect=AssertionError('No observation prefix may be withheld'))
+    observe = Mock(side_effect=AssertionError('No input-video memory may be built'))
     reference_search = Mock(side_effect=AssertionError('No normal-memory retrieval may run'))
-    monkeypatch.setattr(banks, 'load_bank', load_reference)
-    monkeypatch.setattr(pipeline, 'build_domain_constitution', build_constitution)
-    monkeypatch.setattr(pipeline, 'embed_constitution', embed_constitution)
-    monkeypatch.setattr(windows, 'split_familiarisation', familiarisation)
+    monkeypatch.setattr(store, 'load_bank', load_reference)
+    monkeypatch.setattr(pipeline, 'run_observe_detect', observe)
     monkeypatch.setattr(MemoryBank, 'top_k_match', reference_search)
     monkeypatch.setattr(runtime, 'caption_session', lambda config: nullcontext())
     monkeypatch.setattr(runtime, 'resolve_model', Mock(side_effect=AssertionError('No bank preload')))
     review = Mock(side_effect=AssertionError('Configured verdict review is disabled'))
     monkeypatch.setattr(pipeline, 'explain_anomaly', review)
 
-    config = dict(inference=settings(), memory=dict(representation='visual_text',
-                  allow_anomaly_promotion=False), temporal=dict(mode='sliding_windows'),
-                  familiarisation=dict(observation_fraction=.4, min_caption_occurrences=1),
+    config = dict(architecture='action', action=settings(), temporal=dict(mode='sliding_windows'),
                   evaluation=dict(memory_bank_path='/missing/reference.npz', llm_review=False))
     constitution, bank, results = pipeline.run_full_pipeline('video.mp4', config)
 
@@ -100,6 +99,5 @@ def test_pipeline_scores_every_window_without_loading_or_building_memory(monkeyp
     assert results[0].event.start_frame == 0  # includes the would-be observation period
     processor.process.assert_called_once_with('video.mp4', caption=False)
     processor.caption_events.assert_called_once_with(events, raw_frames)
-    for forbidden in (load_reference, build_constitution, embed_constitution,
-                      familiarisation, reference_search, review):
+    for forbidden in (load_reference, observe, reference_search, review):
         forbidden.assert_not_called()

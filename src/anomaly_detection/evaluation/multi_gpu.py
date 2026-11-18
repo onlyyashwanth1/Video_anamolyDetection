@@ -91,14 +91,13 @@ def _worker(device, config, cache_dir, threads, jobs, messages):
     try:
         _configure_gpu(device, threads)
         import cv2
-        from anomaly_detection.processing import VideoEventProcessor
-        from anomaly_detection.reasoning.local_gemma import configure, ensure_ready
+        from anomaly_detection.perception.processor import VideoEventProcessor
+        from anomaly_detection.reasoning.gemma import configure, ensure_ready
         from anomaly_detection.evaluation.video_cache import VideoCache
 
         cv2.setNumThreads(threads)
         cache = VideoCache(cache_dir, config)
         processor = VideoEventProcessor(config, strict=True)
-        processor.masker.model.to("cuda:0")
         configure(config, device)
         ensure_ready()
         while True:
@@ -179,29 +178,32 @@ def run_workers(devices, config, cache_dir, jobs, threads=4, worker_target=None)
 
 def _finalize(device, config, cache_dir, normal, testing, annotations,
               bank_path, annotation_path, output, stage, threads):
-    """Only CLIP is needed here unless optional test-time Gemma review is enabled."""
+    """Build/load the bank if the architecture needs one, then evaluate (one GPU)."""
     configure_evaluation_logging()
     _configure_gpu(device, threads)
-    from anomaly_detection.encoding.multi_scale_encoder import MultiScaleClipEncoder
+    from anomaly_detection.perception.clip_encoder import MultiScaleClipEncoder
     from anomaly_detection.evaluation.video_cache import VideoCache, CachedProcessor
-    from anomaly_detection.evaluation.bank import build_bank, load_bank
-    from anomaly_detection.reasoning.local_gemma import configure
+    from anomaly_detection.memory.store import build_bank, load_bank
+    from anomaly_detection.reasoning.gemma import configure
+    from anomaly_detection.scoring import needs_bank
 
     configure(config, device)
 
     processor = CachedProcessor(VideoCache(cache_dir, config),
                                 MultiScaleClipEncoder(config["encoder"]["model_name"], device="cuda:0"))
-    if Path(bank_path).exists():
-        bank, metadata = load_bank(bank_path, config,
-                                   None if config["evaluation"].get("frozen_reference_memory") else normal)
-    else:
-        if config["evaluation"].get("frozen_reference_memory"):
-            raise FileNotFoundError("Frozen transfer requires an existing source-domain memory bank")
-        bank, metadata = build_bank(processor, normal, config, bank_path)
+    bank, metadata = None, None
+    if needs_bank(config) or stage == "build-memory":
+        if Path(bank_path).exists():
+            bank, metadata = load_bank(bank_path, config,
+                                       None if config["evaluation"].get("frozen_reference_memory") else normal)
+        else:
+            if config["evaluation"].get("frozen_reference_memory"):
+                raise FileNotFoundError("Frozen transfer requires an existing source-domain memory bank")
+            bank, metadata = build_bank(processor, normal, config, bank_path)
     if stage != "build-memory":
         from anomaly_detection.evaluation.runner import evaluate
         evaluate(processor, bank, metadata, testing, annotations, config,
-                 bank_path, annotation_path, output)
+                 bank_path if bank is not None else None, annotation_path, output)
 
 
 def finalize(*args):

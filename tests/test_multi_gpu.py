@@ -13,7 +13,7 @@ from anomaly_detection.evaluation.multi_gpu import (
     cache_lock, pending_jobs, resolve_devices, run_workers,
 )
 from anomaly_detection.evaluation.video_cache import VideoCache, CachedProcessor
-from anomaly_detection.utils.types import EventChunk
+from anomaly_detection.datatypes import EventChunk
 
 
 @pytest.fixture
@@ -24,8 +24,10 @@ def config():
         "segmentation": {"coarse_threshold": .9, "fine_threshold": .95},
         "temporal": {"mode": "sliding_windows", "window_seconds": 4, "stride_seconds": 1},
         "captioning": {"mode": "frame_captions_then_summary", "max_frames_per_window": 4},
-        "familiarisation": {"min_caption_occurrences": 1},
-        "inference": {"anomaly_threshold": .5},
+        "memory_bank": {"min_caption_occurrences": 1},
+        "architecture": "action",
+        "action": {"memory_weight": 1.0, "memory_image_weight": .5, "threshold": .5,
+                   "normal_prompts": ["walking"], "anomalous_prompts": ["running"]},
         "evaluation": {"llm_review": False, "annotation_fps": "native"},
     }
 
@@ -49,7 +51,8 @@ def test_cache_roundtrip_and_invalidation(tmp_path, config):
     np.testing.assert_array_equal(loaded.events[0].average_embedding, [1, 0])
     # Scoring-only changes can reuse captions, feature changes cannot.
     other = copy.deepcopy(config)
-    other["inference"]["anomaly_threshold"] = .8
+    other["action"]["threshold"] = .8
+    other["temporal"]["smoothing_seconds"] = 12
     assert VideoCache(cache.folder, other).load(source) is not None
     other["temporal"]["stride_seconds"] = 2
     assert VideoCache(cache.folder, other).load(source) is None
@@ -156,7 +159,7 @@ def test_lock_prevents_concurrent_schedulers(tmp_path):
 
 
 def test_cached_pipeline_matches_serial_memory_and_metrics(tmp_path, config, monkeypatch):
-    from anomaly_detection.evaluation.bank import build_bank
+    from anomaly_detection.memory.store import build_bank
     from anomaly_detection.evaluation.dataset import Annotation
     from anomaly_detection.evaluation.runner import evaluate
     import anomaly_detection.evaluation.runner as runner
@@ -186,7 +189,8 @@ def test_cached_pipeline_matches_serial_memory_and_metrics(tmp_path, config, mon
     bank2, meta2 = build_bank(cached, normal, config, tmp_path / "two.npz")
     assert [(e.text, e.occurrence_count) for e in bank1.entries] == [
         (e.text, e.occurrence_count) for e in bank2.entries]
-    assert meta1["processed_videos"] == meta2["processed_videos"]
+    assert meta1["reference_videos"] == meta2["reference_videos"]
+    assert meta1["calibration"] == meta2["calibration"]
     annotations = {"normal_test": Annotation("normal_test", "Normal", ()),
                    "anomaly_test": Annotation("anomaly_test", "Abuse", ((1, 40),))}
     annotation_path = tmp_path / "annotations.txt"

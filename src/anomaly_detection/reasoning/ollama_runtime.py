@@ -74,9 +74,9 @@ def caption_session(config):
     Merely loading a configuration does not start servers. A caller already
     managing worker endpoints can reuse them; other callers own one server.
     """
-    from anomaly_detection.reasoning import local_gemma
+    from anomaly_detection.reasoning import gemma
     if config.get("reasoning", {}).get("backend", "transformers") != "ollama":
-        local_gemma.configure(config)
+        gemma.configure(config)
         yield
         return
     from datetime import datetime, timezone
@@ -85,19 +85,19 @@ def caption_session(config):
     resolve_model(config)
     device = resolve_devices("0", os.environ.get("CUDA_VISIBLE_DEVICES"))[0]
     if config.get("_ollama_hosts"):
-        local_gemma.configure(config, device)
-        local_gemma.ensure_ready()
+        gemma.configure(config, device)
+        gemma.ensure_ready()
         yield
         return
     root = Path(__file__).resolve().parents[3]
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     try:
         with ollama_servers([device], config, root / "outputs/ollama_logs/single" / stamp):
-            local_gemma.configure(config, device)
-            local_gemma.ensure_ready()
+            gemma.configure(config, device)
+            gemma.ensure_ready()
             yield
     finally:
-        local_gemma.configure({})
+        gemma.configure({})
 
 
 def _stop(process):

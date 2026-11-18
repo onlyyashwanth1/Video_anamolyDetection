@@ -33,11 +33,16 @@ def test_mask_intervals_round_trip_through_evaluator(prepare, tmp_path, mask):
     np.testing.assert_array_equal(frame_labels(annotation, len(mask), 24.0, "native"), mask)
 
 
-def test_shanghaitech_is_a_registered_dataset(monkeypatch):
+@pytest.mark.parametrize("dataset", ["ucf", "xd", "shanghaitech", "avenue"])
+def test_every_dataset_has_a_config_and_cli_choice(monkeypatch, dataset):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "scripts"))
-    cli = importlib.import_module("evaluate_ucf_multi_gpu")
-    with pytest.raises(ValueError, match="Unsupported dataset"):
-        cli.main(dataset="Avenue", argv=["--gpus", "0", "--dry-run"])
-    # A registered name gets past the dataset gate and fails later, on argument parsing.
+    cli = importlib.import_module("evaluate")
+    assert cli.DATASETS[dataset]
+    assert (Path(__file__).resolve().parents[1] / "config/datasets" / f"{dataset}.yaml").exists()
+
+
+def test_unknown_dataset_is_rejected(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "scripts"))
+    cli = importlib.import_module("evaluate")
     with pytest.raises(SystemExit):
-        cli.main(dataset="ShanghaiTech", argv=["--help"])
+        cli.main(["--dataset", "kinetics", "--architecture", "action_default", "--gpus", "0", "--dry-run"])

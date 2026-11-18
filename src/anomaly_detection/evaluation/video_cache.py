@@ -1,4 +1,9 @@
-"""Atomic, model-versioned video features for resumable GPU preprocessing."""
+"""Atomic, feature-versioned video checkpoints for resumable GPU preprocessing.
+
+One NPZ per video holds its window geometry, Gemma captions and CLIP window
+embeddings. The file name hashes the video's path/size/mtime and feature_spec,
+so a checkpoint is only reused for the same video and the same perception.
+"""
 
 import hashlib
 import json
@@ -9,8 +14,8 @@ import uuid
 
 import numpy as np
 
-from anomaly_detection.evaluation.bank import model_spec
-from anomaly_detection.utils.types import EventChunk
+from anomaly_detection.datatypes import EventChunk
+from anomaly_detection.memory.store import feature_spec
 
 CACHE_VERSION = 1
 
@@ -18,7 +23,7 @@ CACHE_VERSION = 1
 class VideoCache:
     def __init__(self, folder, config):
         self.folder = Path(folder)
-        self.spec = model_spec(config)
+        self.spec = feature_spec(config)
 
     def identity(self, source):
         path = Path(source).resolve()
@@ -80,7 +85,7 @@ class VideoCache:
 
 
 class CachedProcessor:
-    """Adapter for the unchanged serial bank builder and scoring runner."""
+    """Serve checkpointed videos to the bank builder and the evaluation runner."""
 
     def __init__(self, cache, encoder):
         self.cache, self.encoder = cache, encoder

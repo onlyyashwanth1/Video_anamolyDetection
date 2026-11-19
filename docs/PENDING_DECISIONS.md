@@ -38,6 +38,15 @@ re-measured without masking — the four architectures on four datasets in `outp
 the older studies re-run from cached features in `outputs/results/thesis_analyses_20261119/`.
 Backup of the masked version: `BTP_THESIS_VAD_backup_masked_20261119.tgz`.
 
+### 1c. B+J is now the proposed model (decided 2026-11-19, done)
+Ch4 presents B+J (11 stages, same numbering as the 'Memory + Judge' site; new Figure 4.1) with
+the default model and the shared configuration as baselines (Sec. 4.8, own figure). Ch5 leads
+with B+J: results on 4 datasets, ablation, sensitivity, alert behaviour; qualitative examples and
+the XD error audit are now for B+J. Abstract, Ch1 (objectives, contributions) and Ch6 reframed.
+89-page PDF. Stated caveats: B+J settings were chosen on UCF/XD validation + ShanghaiTech;
+on clean Avenue the default baseline is better (68.96 vs 63.86); B+J is offline and expensive.
+Backup of the previous version (default model proposed): `BTP_THESIS_VAD_backup_default_proposed_20261119.tgz`.
+
 ### 1b. Please read: the numbers change some conclusions (2026-11-19)
 The thesis text now follows these numbers (UCF AUC / XD AP / ShanghaiTech AUC / Avenue AUC):
 

@@ -99,17 +99,25 @@ Caches: the memory's leave-one-video-out statistics are stored next to the bank
 
 ---
 
-## Results so far
+## Results (2026-11-19, restructured code, unmasked features)
 
-Frame-level ROC-AUC (UCF, ShanghaiTech, Avenue) and AP (XD), pooled over all test frames.
+Frame-level metrics pooled over all test frames (`scripts/collect_results.py` ->
+`outputs/results/architectures/results.md`). "eval" = the 80% evaluation partition of the
+grouped validation/evaluation split; Avenue was never used for any choice.
 
-| Model | UCF AUC | XD AP | Features | Status |
+| Model | UCF AUC (all / eval) | XD AP (all / eval) | ShanghaiTech AUC / AP | Avenue AUC / AP (clean) |
 |---|---|---|---|---|
-| action_default | 77.57 | 53.41 | masked | thesis; **re-measure unmasked** |
-| shared_best | 83.12 | 71.76 | masked | thesis; unmasked ablation 81.58 / 74.36 |
-| B | 72.58 (eval 71.65) | 54.00 | unmasked | research scripts; reproduced by the restructured code |
-| B+J | 78.07 (eval 79.47) | val 62.42 | unmasked | research scripts; XD evaluation half never rated |
-| B+J, Avenue (clean test) | 63.8 | AP 44.8 | unmasked | research scripts |
+| action_default (95/5) | 75.53 / 80.29 | 59.12 / 60.47 | 61.05 / 52.68 | 68.96 / 49.88 |
+| shared_best | 81.58 / 83.07 | 74.36 / 73.90 | 52.09 / 46.16 | 58.05 / 33.36 |
+| B | 72.58 / 71.65 | 54.00 / 56.10 | 62.17 / 53.76 | 61.27 / 32.54 |
+| B+J | 78.10 / 79.50 | 64.86 / 65.82 | 63.96 / 56.81 | 63.86 / 44.91 |
+
+- shared_best is best on UCF/XD, but its prompts name the benchmark categories; it is weakest
+  outside them (ShanghaiTech near chance).
+- action_default is best on Avenue (its action term alone: 69.2 AUC).
+- B+J is the best prompt-free model everywhere and best on ShanghaiTech.
+- Numbers measured earlier with object-masked image features (removed in the restructure) are
+  in `BTP_THESIS_VAD_backup_masked_20261119.tgz` only.
 
 Prompts, weights and B's smoothing were selected using benchmark data (validation
 halves, ShanghaiTech); only Avenue was held out completely.

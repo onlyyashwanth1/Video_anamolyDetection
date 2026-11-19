@@ -1,0 +1,235 @@
+<style>
+/* B+J additions: one extra score colour for the judge, the prompt card, the wider diagram */
+:root{--c-judge:#b4479c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c-judge:#f07acb}}
+:root[data-theme="dark"]{--c-judge:#f07acb}
+.k-judge{color:var(--c-judge)!important}
+.dgfig.full .dg{width:1360px}
+.prompt{font-size:13px;line-height:1.5;color:var(--fg-2);max-height:262px;overflow-y:auto;padding-right:4px}
+.prompt .pk{color:var(--fg-3);margin:0 0 4px}
+.prompt ul{margin:0 0 10px;padding-left:18px;display:grid;gap:2px}
+.prompt .pn{color:var(--fg);font-weight:600;margin:0 0 10px}
+.sibling{margin-top:18px;font-size:14px;color:var(--fg-3)}
+</style>
+
+<nav class="nav" aria-label="Page">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Memory + Judge</a>
+    <div class="nav-links"><a href="#walkthrough">Walkthrough</a><a href="#architecture">Architecture</a><a class="opt" href="#details">In detail</a></div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">Video anomaly detection, no prompts, no training</p>
+      <h1>Memory + Judge</h1>
+      <p class="lead">The system remembers <b>what normal footage looks and reads like</b>. A new moment scores high when nothing in memory resembles it, and higher still when Gemma, shown the closest normal moments, judges it abnormal. Step through it below and watch each number being worked out.</p>
+      <div class="cta"><a class="btn" href="#walkthrough">Start the walkthrough</a><a class="link" href="#architecture">See the architecture</a></div>
+      <p class="authors"><span>By</span><b>Prudhvi</b><b>Yashwanth</b><b>Nishkarsh</b></p>
+    </div>
+    <figure class="hero-demo" aria-label="Example clip with its anomaly score">
+      <div class="screen">
+        <canvas id="heroCv"></canvas>
+        <div class="hud"><span class="rec">CAM 04 · 30 fps</span><span class="mono" id="heroTc">00:00.0</span></div>
+        <span class="badge" id="heroBadge">Normal</span>
+      </div>
+      <div class="track">
+        <div class="track-h"><span>Score per frame, in spreads above normal</span><span>alert above <b class="mono">z 3</b></span></div>
+        <canvas id="heroTrack"></canvas>
+      </div>
+      <p class="capline"><span class="k">Gemma</span><span id="heroCap">Traffic moves normally past a row of shops.</span></p>
+    </figure>
+  </div>
+</header>
+
+<section class="sim" id="walkthrough">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Walkthrough</p>
+      <h2>Follow one clip through every step.</h2>
+      <p class="sub">A 24-second street scene in which a car drifts into the oncoming lane and hits a van. Run each step, inspect what it produces, and change the settings to see how the score responds.</p>
+      <span class="note-pill">Illustrative: the clip, captions, vectors and Gemma's ratings are synthetic. The formulas and defaults are the model's.</span>
+    </div>
+    <div class="rail" id="rail" role="list"></div>
+    <div class="stage" id="stage">
+      <div class="viz" id="viz"></div>
+      <aside class="panel" id="panel"></aside>
+    </div>
+    <div class="dock">
+      <div class="dock-in">
+        <button class="icon-btn" id="prevBtn" aria-label="Previous step"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg></button>
+        <span class="count" id="count">1 / 12</span>
+        <button class="icon-btn" id="nextBtn" aria-label="Skip to next step"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4.5 13 10l-5.5 5.5"/></svg></button>
+        <button class="btn" id="mainBtn">Build the memory</button>
+      </div>
+    </div>
+    <p class="kbd">Use ← and → to move between steps.</p>
+  </div>
+</section>
+
+<section class="arch" id="architecture">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Architecture</p>
+      <h2>How a video becomes a score.</h2>
+      <p class="sub">A video is sampled, encoded, grouped into 4-second windows and described in words. Each window is compared with a memory of normal footage, by picture and by caption, and a judge reads the caption next to the closest normal moments. The scores are added and mapped back onto every frame. No model is trained and no incident is described in advance.</p>
+    </div>
+    <div class="recap" id="recap" hidden></div>
+  </div>
+  <div class="dg-wide">
+    <figure class="dgfig" id="dgfig">
+      <div class="dg-bar"><span>Select a numbered block to open that step in the walkthrough.</span><div class="seg" role="group" aria-label="Diagram size" data-seg="zoom"><button type="button" data-v="fit" aria-pressed="true">Fit</button><button type="button" data-v="full" aria-pressed="false">Actual size</button></div></div>
+      <div class="dg-scroll">@@DIAGRAM@@</div>
+    </figure>
+  </div>
+</section>
+
+<section class="details" id="details">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">In detail</p>
+      <h2>The architecture, stage by stage.</h2>
+      <p class="sub">What each block takes in, what it gives out, how it works and why it is there.</p>
+    </div>
+    <div class="dt-grid">
+      <nav class="toc" aria-label="Stages">
+        <ol>
+          <li><a href="#d-overview"><span>·</span>At a glance</a></li>
+          <li><a href="#d-0"><span>0</span>Normal memory</a></li>
+          <li><a href="#d-1"><span>1–4</span>Perception</a></li>
+          <li><a href="#d-5"><span>5</span>Sentence vectors</a></li>
+          <li><a href="#d-6"><span>6–7</span>Novelty and B</a></li>
+          <li><a href="#d-8"><span>8</span>Judge</a></li>
+          <li><a href="#d-9"><span>9</span>Fusion</a></li>
+          <li><a href="#d-10"><span>10–11</span>Frames and alerts</a></li>
+          <li><a href="#d-settings"><span>·</span>Settings</a></li>
+        </ol>
+      </nav>
+      <div class="dt-body">
+
+        <article class="sd" id="d-overview">
+          <div class="sd-head"><span class="sd-num">·</span><h3>At a glance</h3></div>
+          <p class="sd-lead">A video goes in. A score for every frame, alerts and a one-sentence description of every few seconds come out. Nothing is trained, and no list of incidents is written down anywhere.</p>
+          <h4>The path of one video</h4>
+          <div class="flowline">
+            <span>Frames at 1 fps</span><i>→</i><span>Frame vectors</span><i>→</i><span>4-second windows</span><i>→</i><span>Captions</span><i>→</i><span>Centred caption vectors</span><i>→</i><span>Novelty and judge scores</span><i>→</i><span>Window score</span><i>→</i><span>Frame scores</span><i>→</i><span>Alerts</span>
+          </div>
+          <div class="two">
+            <div><h5>Three frozen models</h5><ul>
+              <li><b>CLIP ViT-L/14</b> turns frames into vectors that can be compared.</li>
+              <li><b>Gemma 4 31B</b> writes what happens in each window and later acts as the judge.</li>
+              <li><b>MPNet</b> turns captions into sentence vectors.</li></ul></div>
+            <div><h5>One fixed reference</h5><ul>
+              <li><b>Normal memory:</b> every window of normal footage, as an image vector, a caption and a centred caption vector.</li>
+              <li>With it, how novel normal windows usually look, and how the judge usually rates them.</li>
+              <li>Prepared beforehand and never changed while a video is scored.</li></ul></div>
+          </div>
+          <h4>The whole score in four lines</h4>
+          <div class="formula">B = z( 1 − max cos(caption, memory captions) ) + 0.25 · z( 1 − max cos(image, memory images) )<br>J = ( Gemma's expected rating − normal mean ) / normal std<br>window score = B + 1.0 · J<br>alert at frame <i>f</i> &nbsp;if&nbsp; smoothed mean of covering window scores &gt; 3</div>
+        </article>
+
+        <article class="sd" id="d-0">
+          <div class="sd-head"><span class="sd-num">0</span><h3>Normal memory</h3><button type="button" class="textbtn sd-open" data-go="0">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Keep everything seen in normal footage, and learn how novel normal itself looks.</p>
+          <dl class="io"><div><dt>Takes</dt><dd>Videos in which nothing goes wrong</dd></div><div><dt>Gives</dt><dd>Window vectors, captions and their reference statistics</dd></div></dl>
+          <h4>How it works</h4>
+          <ol class="steps">
+            <li><span>Each normal video goes through steps 1 to 5 with the same frozen models.</span></li>
+            <li><span>For every window, the memory keeps the image vector, the caption and the caption vector. Caption vectors are centred on their own video's mean.</span></li>
+            <li><span>Every memory window is scored against the rest of the memory with its own video left out. The median and IQR / 1.349 of those novelties become the unit for test scores.</span></li>
+            <li><span>A seeded sample of memory windows is rated by the judge. Their mean and standard deviation calibrate the judge.</span></li>
+          </ol>
+          <h4>Why it is there</h4>
+          <p class="t">"Abnormal" only has meaning against a normal. Calibrating the memory against itself puts every score in the same unit: spreads above what normal footage typically scores.</p>
+        </article>
+
+        <article class="sd" id="d-1">
+          <div class="sd-head"><span class="sd-num">1–4</span><h3>Perception</h3><button type="button" class="textbtn sd-open" data-go="1">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Turn the video into a list of 4-second windows, each with a vector and a sentence.</p>
+          <dl class="io"><div><dt>Takes</dt><dd>The video at its native frame rate</dd></div><div><dt>Gives</dt><dd>Per window: image vector and caption</dd></div></dl>
+          <h4>How it works</h4>
+          <ol class="steps">
+            <li><span><b>Sampling:</b> keep one frame per second.</span></li>
+            <li><span><b>Image vectors:</b> CLIP ViT-L/14 encodes the whole frame at full and half size; the two vectors are averaged and normalised.</span></li>
+            <li><span><b>Windows:</b> 4 seconds long, starting every second; the window vector is the mean of its frame vectors.</span></li>
+            <li><span><b>Captions:</b> Gemma describes up to 4 frames of the window, then joins them into one sentence in time order.</span></li>
+          </ol>
+          <h4>Why it is there</h4>
+          <p class="t">Windows hold actions, not just poses. Captions put the action into words that can be searched by meaning and read by the judge. Whole frames are kept because the background is what the memory knows best.</p>
+        </article>
+
+        <article class="sd" id="d-5">
+          <div class="sd-head"><span class="sd-num">5</span><h3>Sentence vectors and centring</h3><button type="button" class="textbtn sd-open" data-go="5">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Remove what is always true of this camera, keep what is happening.</p>
+          <div class="formula"><i>t̃</i> = normalise( MPNet(caption) − 1.0 · mean of MPNet over the video's captions )</div>
+          <h4>Why it is there</h4>
+          <p class="t">Captions from one camera keep naming the same place. Without centring, a test video filmed somewhere the memory has never seen would look novel in every window. After centring, only change within the video stands out.</p>
+        </article>
+
+        <article class="sd" id="d-6">
+          <div class="sd-head"><span class="sd-num">6–7</span><h3>Novelty and the memory score B</h3><button type="button" class="textbtn sd-open" data-go="6">Open in walkthrough ›</button></div>
+          <p class="sd-lead">How far is this window from the closest thing in normal memory?</p>
+          <div class="formula"><i>z</i><sub>cap</sub> = ( 1 − max cos(<i>t̃</i>, centred memory captions) − median ) / (IQR / 1.349)<br><i>z</i><sub>img</sub> = ( 1 − max cos(<i>v</i><sub>win</sub>, memory images) − median ) / (IQR / 1.349)<br>B = <i>z</i><sub>cap</sub> + 0.25 · <i>z</i><sub>img</sub></div>
+          <h4>Why it is there</h4>
+          <p class="t">B uses no prompts at all. It flags whatever the memory has not seen, which is the core idea: watch normal, then notice the difference. Only the single nearest neighbour counts, so one close normal match is enough to call a window familiar.</p>
+        </article>
+
+        <article class="sd" id="d-8">
+          <div class="sd-head"><span class="sd-num">8</span><h3>Memory-aware judge</h3><button type="button" class="textbtn sd-open" data-go="8">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Novel is not the same as harmful. The judge weighs the difference.</p>
+          <ol class="steps">
+            <li><span>Retrieve the 8 most similar distinct captions from memory.</span></li>
+            <li><span>Ask Gemma, with a fixed generic prompt, how likely the new moment is abnormal compared with those normal moments, as one digit from 0 to 9.</span></li>
+            <li><span>Read the probabilities of the ten digit tokens and take the expected digit as the rating.</span></li>
+            <li><span>Convert to <i>z</i> with the mean and standard deviation of normal memory ratings.</span></li>
+          </ol>
+          <p class="t">The prompt names no category of incident. Each rating is stored by its exact prompt and reused.</p>
+        </article>
+
+        <article class="sd" id="d-9">
+          <div class="sd-head"><span class="sd-num">9</span><h3>Fusion</h3><button type="button" class="textbtn sd-open" data-go="9">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Both terms are already in spreads above normal, so they are added.</p>
+          <div class="formula">window score = B + 1.0 · <i>z</i><sub>J</sub></div>
+        </article>
+
+        <article class="sd" id="d-10">
+          <div class="sd-head"><span class="sd-num">10–11</span><h3>Frame scores and alerts</h3><button type="button" class="textbtn sd-open" data-go="10">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Map window scores back onto every original frame, smooth them, and alert above 3.</p>
+          <div class="formula"><i>s</i>(<i>f</i>) = mean of score(<i>w</i>) over windows covering <i>f</i><br><i>ŝ</i>(<i>f</i>) = centred moving average of <i>s</i> over min(36 s, length / 4)<br>alert(<i>f</i>) = <i>ŝ</i>(<i>f</i>) &gt; 3 &nbsp;&nbsp;(shown as σ(<i>ŝ</i> − 3) &gt; 0.5)</div>
+          <p class="t">Smoothing joins the windows of one event into a single run of alerts. The level 3 is a rule, not a tuned value; ROC-AUC does not depend on it.</p>
+        </article>
+
+        <article class="sd" id="d-settings">
+          <div class="sd-head"><span class="sd-num">·</span><h3>Settings</h3></div>
+          <p class="sd-lead">Every number used above, in one place.</p>
+          <div class="tbl-wrap"><table class="tbl"><tbody>
+            <tr><td>Frames kept</td><td>1 per second</td></tr>
+            <tr><td>Image encoder</td><td>CLIP ViT-L/14 · 768-D · full + 0.5×</td></tr>
+            <tr><td>Window · stride</td><td>4 s · 1 s</td></tr>
+            <tr><td>Captioner and judge</td><td>Gemma 4 31B · Q8_0 · ≤ 4 frames</td></tr>
+            <tr><td>Sentence encoder</td><td>all-mpnet-base-v2 · 768-D</td></tr>
+            <tr><td>Centring α</td><td>1.0</td></tr>
+            <tr><td>Nearest neighbours</td><td>1</td></tr>
+            <tr><td>Robust scale</td><td>IQR / 1.349</td></tr>
+            <tr><td>Image weight</td><td>0.25</td></tr>
+            <tr><td>Judge context</td><td>8 normal captions</td></tr>
+            <tr><td>Judge calibration</td><td>2000 memory windows · seed 0</td></tr>
+            <tr><td>Judge weight λ</td><td>1.0</td></tr>
+            <tr><td>Smoothing</td><td>min(36 s, length / 4)</td></tr>
+            <tr><td>Alert level</td><td>z &gt; 3</td></tr>
+          </tbody></table></div>
+          <p class="sibling">The walkthrough shows 20 normal clips and 200 judge calibration windows to keep it fast in the browser.</p>
+        </article>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Memory + Judge · Prudhvi, Yashwanth, Nishkarsh</span>
+    <span>The walkthrough uses a synthetic clip, captions, vectors and judge ratings. Formulas and default settings follow the model configuration.</span>
+  </div>
+</footer>

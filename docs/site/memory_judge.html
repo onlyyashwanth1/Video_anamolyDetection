@@ -1,0 +1,1955 @@
+<title>Memory + Judge</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="An interactive walkthrough of the memory novelty plus judge (B+J) video anomaly detector.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: quiet product page. One dark "footage" surface, everything else neutral; colour is reserved for the score streams. */
+:root{
+  --bg:#fbfbfd; --bg-2:#f3f3f6; --surface:#ffffff; --surface-2:#f7f7f9;
+  --fg:#1d1d1f; --fg-2:#55555b; --fg-3:#86868c;
+  --line:rgba(30,30,45,.12); --line-2:rgba(30,30,45,.07);
+  --accent:#0066cc; --btn:#0071e3; --btn-fg:#ffffff;
+  --nav-bg:rgba(251,251,253,.74); --dock-bg:rgba(255,255,255,.78);
+  --c-action:#5856d6; --c-memory:#0a93ad; --c-anom:#e0342a; --c-normal:#1e9e57; --c-thresh:#dd7400;
+  --div-neg:#2f6fd6; --div-pos:#e2711d; --div-mid:#eceef2;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.07);
+  --font:"Geist",-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --dg-paper:#ffffff; --dg-text:#1a1a1a; --dg-muted:#333333; --dg-edge:#555555;
+  --dg-proc-f:#ffffff; --dg-proc-s:#666666; --dg-io-f:#f5f5f5; --dg-blue-f:#dae8fc; --dg-blue-s:#6c8ebf;
+  --dg-yel-f:#fff2cc; --dg-yel-s:#d6b656; --dg-grn-f:#d5e8d4; --dg-grn-s:#82b366; --dg-org-f:#ffe6cc; --dg-org-s:#d79b00; --dg-leg-s:#bbbbbb;
+  --ease:cubic-bezier(.28,.11,.32,1); --spring:cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#000000; --bg-2:#0e0e11; --surface:#161618; --surface-2:#1d1d20;
+  --fg:#f5f5f7; --fg-2:#a6a6ab; --fg-3:#76767c;
+  --line:rgba(255,255,255,.14); --line-2:rgba(255,255,255,.08);
+  --accent:#2997ff; --btn:#0071e3; --btn-fg:#ffffff;
+  --nav-bg:rgba(0,0,0,.66); --dock-bg:rgba(30,30,33,.78);
+  --c-action:#8e8bff; --c-memory:#3cc8de; --c-anom:#ff5b50; --c-normal:#3fd07a; --c-thresh:#ffa53d;
+  --div-neg:#4d8dff; --div-pos:#ff8a3d; --div-mid:#26262b;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 40px rgba(0,0,0,.45);
+  --dg-paper:#161618; --dg-text:#f2f2f4; --dg-muted:#c7c7cc; --dg-edge:#9a9aa0;
+  --dg-proc-f:#1f1f23; --dg-proc-s:#77777e; --dg-io-f:#26262b; --dg-blue-f:#18263b; --dg-blue-s:#5a83c0;
+  --dg-yel-f:#2e2814; --dg-yel-s:#b39a45; --dg-grn-f:#17291a; --dg-grn-s:#6aa35a; --dg-org-f:#33240f; --dg-org-s:#d08a1a; --dg-leg-s:#55555c;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#000000; --bg-2:#0e0e11; --surface:#161618; --surface-2:#1d1d20;
+  --fg:#f5f5f7; --fg-2:#a6a6ab; --fg-3:#76767c;
+  --line:rgba(255,255,255,.14); --line-2:rgba(255,255,255,.08);
+  --accent:#2997ff; --btn:#0071e3; --btn-fg:#ffffff;
+  --nav-bg:rgba(0,0,0,.66); --dock-bg:rgba(30,30,33,.78);
+  --c-action:#8e8bff; --c-memory:#3cc8de; --c-anom:#ff5b50; --c-normal:#3fd07a; --c-thresh:#ffa53d;
+  --div-neg:#4d8dff; --div-pos:#ff8a3d; --div-mid:#26262b;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 40px rgba(0,0,0,.45);
+  --dg-paper:#161618; --dg-text:#f2f2f4; --dg-muted:#c7c7cc; --dg-edge:#9a9aa0;
+  --dg-proc-f:#1f1f23; --dg-proc-s:#77777e; --dg-io-f:#26262b; --dg-blue-f:#18263b; --dg-blue-s:#5a83c0;
+  --dg-yel-f:#2e2814; --dg-yel-s:#b39a45; --dg-grn-f:#17291a; --dg-grn-s:#6aa35a; --dg-org-f:#33240f; --dg-org-s:#d08a1a; --dg-leg-s:#55555c;
+  color-scheme:dark}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.006em}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--nav-bg)}
+h1,h2,h3,h4{text-wrap:balance}
+p{margin:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+button{font:inherit;color:inherit}
+canvas{display:block;width:100%}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.wrap{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+section[id],header[id]{scroll-margin-top:64px}
+
+/* nav */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--nav-bg);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line-2)}
+.nav-in{height:52px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{font-weight:600;font-size:17px;color:var(--fg);letter-spacing:-.02em}
+.brand:hover{text-decoration:none}
+.nav-links{display:flex;gap:22px;font-size:13px}
+.nav-links a{color:var(--fg-2)}
+.nav-links a:hover{color:var(--fg);text-decoration:none}
+@media (max-width:520px){.nav-links{gap:14px}.nav-links .opt{display:none}}
+
+/* hero */
+.hero{padding-block:72px 64px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:64px;align-items:center}
+.eyebrow{font-size:15px;font-weight:600;color:var(--c-anom);letter-spacing:-.01em}
+.sim .eyebrow,.arch .eyebrow,.details .eyebrow{color:var(--accent)}
+h1{font-size:clamp(48px,7.4vw,96px);line-height:.96;letter-spacing:-.05em;font-weight:700;margin:12px 0 22px}
+.lead{font-size:clamp(18px,1.55vw,21px);line-height:1.45;color:var(--fg-2);max-width:31em;letter-spacing:-.012em}
+.lead b{color:var(--fg);font-weight:600}
+.cta{display:flex;flex-wrap:wrap;align-items:center;gap:22px;margin-top:30px}
+.authors{margin-top:34px;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px;color:var(--fg-3)}
+.authors b{color:var(--fg);font-weight:600}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 22px;border-radius:999px;background:var(--btn);color:var(--btn-fg);font-weight:500;font-size:16px;border:0;cursor:pointer;transition:transform .2s var(--ease),background .2s,opacity .2s;white-space:nowrap}
+.btn:hover{text-decoration:none;background:#0077ed}
+.btn:active{transform:scale(.97)}
+.btn[disabled]{opacity:.55;cursor:default}
+.btn.ready{animation:ready 1.6s var(--ease) 1}
+@keyframes ready{0%{box-shadow:0 0 0 0 rgba(0,113,227,.45)}100%{box-shadow:0 0 0 14px rgba(0,113,227,0)}}
+.link{font-size:16px;color:var(--accent)}
+.link::after{content:" ›"}
+.hero-demo{margin:0;display:grid;gap:12px}
+.screen{position:relative;border-radius:20px;overflow:hidden;aspect-ratio:16/9;background:#0b0c0e;box-shadow:var(--shadow);max-width:100%}
+.screen canvas{position:absolute;inset:0;height:100%}
+.hud{position:absolute;inset:12px 14px auto;display:flex;justify-content:space-between;align-items:center;font:500 11px var(--mono);color:rgba(255,255,255,.92);text-shadow:0 1px 2px rgba(0,0,0,.5);pointer-events:none}
+.hud .rec{display:flex;align-items:center;gap:6px}
+.hud .rec::before{content:"";width:7px;height:7px;border-radius:50%;background:#ff453a}
+.badge{position:absolute;left:14px;bottom:12px;display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px;border-radius:999px;font:600 12px var(--font);letter-spacing:.01em;color:#fff;background:rgba(30,30,32,.62);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);transition:background .25s var(--ease);pointer-events:none}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:#30d158}
+.badge.on{background:rgba(224,52,42,.88)}
+.badge.on::before{background:#fff}
+.track{background:var(--surface);border-radius:16px;padding:12px 14px 10px;box-shadow:var(--shadow)}
+.track-h{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--fg-3);margin-bottom:6px}
+.track-h b{color:var(--fg);font-weight:600}
+.track canvas{height:64px}
+.capline{display:flex;gap:10px;align-items:baseline;font-size:14px;color:var(--fg-2);min-height:44px;padding:0 4px}
+.capline .k{flex:0 0 auto;font:600 11px var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3)}
+.capline span:last-child{transition:opacity .3s}
+
+/* sections */
+.sim{background:var(--bg-2);padding-block:96px 48px}
+.sec-head{max-width:760px}
+.sec-head h2{font-size:clamp(34px,4.8vw,56px);line-height:1.04;letter-spacing:-.04em;font-weight:700;margin:10px 0 16px}
+.sec-head p.sub{font-size:19px;line-height:1.5;color:var(--fg-2);letter-spacing:-.012em}
+.note-pill{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:6px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--line-2);font-size:13px;color:var(--fg-2)}
+.note-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c-thresh)}
+
+/* rail */
+.rail{display:flex;gap:22px;overflow-x:auto;padding:4px 2px 14px;margin-top:40px;scrollbar-width:none}
+.rail::-webkit-scrollbar{display:none}
+.rgroup{flex:0 0 auto;display:grid;gap:8px}
+.rgroup>span{font:600 11px var(--font);letter-spacing:.07em;text-transform:uppercase;color:var(--fg-3);padding-left:4px}
+.rsteps{display:flex;gap:6px}
+.rstep{display:flex;align-items:center;gap:8px;height:38px;padding:0 6px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--fg-2);font-size:14px;font-weight:500;cursor:pointer;transition:background .35s var(--ease),color .35s var(--ease),padding .35s var(--ease)}
+.rstep .n{display:grid;place-items:center;min-width:26px;height:26px;padding:0 6px;border-radius:999px;background:var(--bg-2);font:600 12px var(--mono);transition:background .3s,color .3s}
+.rstep .t{display:none;white-space:nowrap}
+.rstep.done .n{background:var(--fg-3);color:var(--bg)}
+.rstep[aria-current="step"]{background:var(--fg);color:var(--bg);border-color:var(--fg);padding-right:14px}
+.rstep[aria-current="step"] .n{background:var(--bg);color:var(--fg)}
+.rstep[aria-current="step"] .t{display:inline}
+.rstep:hover:not([aria-current]){border-color:var(--line)}
+
+/* stage */
+.stage{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(0,1fr);background:var(--surface);border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+.viz{padding:22px;min-width:0;border-right:1px solid var(--line-2)}
+.panel{padding:30px 30px 28px;min-width:0}
+@media (max-width:1000px){.stage{grid-template-columns:minmax(0,1fr)}.viz{border-right:0;border-bottom:1px solid var(--line-2)}}
+@media (max-width:560px){.viz{padding:14px}.panel{padding:22px 18px}.stage{border-radius:22px}}
+.fx{animation:rise .55s var(--spring) both}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.p-eyebrow{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--fg-3);font-weight:500}
+.p-num{font:600 12px var(--mono);background:var(--fg);color:var(--bg);border-radius:7px;padding:3px 8px}
+.panel h3{font-size:clamp(26px,2.4vw,32px);line-height:1.08;letter-spacing:-.035em;font-weight:700;margin:12px 0 10px}
+.p-lead{font-size:17px;line-height:1.5;color:var(--fg-2)}
+.p-lead b{color:var(--fg);font-weight:600}
+.pb{border-top:1px solid var(--line-2);margin-top:20px;padding-top:16px}
+.pb h4{margin:0 0 10px;font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3)}
+.pb p{font-size:15px;line-height:1.55;color:var(--fg-2)}
+.pb p+p{margin-top:8px}
+.pb p b{color:var(--fg);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:var(--bg-2);font-size:12px;color:var(--fg-2);white-space:nowrap}
+.chip.frozen::before{content:"";width:9px;height:9px;background:linear-gradient(var(--fg-3),var(--fg-3)) center/1.5px 9px no-repeat,linear-gradient(var(--fg-3),var(--fg-3)) center/9px 1.5px no-repeat;transform:rotate(45deg)}
+
+/* equations */
+.eq{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:7px 8px;align-items:baseline;font:14px/1.45 var(--mono);font-variant-numeric:tabular-nums}
+.eq .l{color:var(--fg);white-space:nowrap}
+.eq .o{color:var(--fg-3)}
+.eq .r{color:var(--fg-2);min-width:0;overflow-wrap:anywhere}
+.eq .r b,.eq .l b{color:var(--fg);font-weight:600}
+.eq i,.vv{font-family:var(--font);font-style:italic;letter-spacing:0}
+.eq sub,.vv sub,.pb sub{font-size:.72em;font-style:normal}
+.eq .sep{grid-column:1/-1;height:1px;background:var(--line-2);margin:2px 0}
+.k-act{color:var(--c-action)!important}.k-mem{color:var(--c-memory)!important}.k-anom{color:var(--c-anom)!important}.k-norm{color:var(--c-normal)!important}.k-th{color:var(--c-thresh)!important}
+
+/* controls */
+.ctl{display:grid;gap:14px}
+.ctl-row{display:grid;gap:4px}
+.ctl-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:14px;color:var(--fg-2)}
+.ctl-top output{font:500 13px var(--mono);color:var(--fg)}
+.ctl-help{font-size:13px;color:var(--fg-3)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;margin:0;cursor:pointer;--p:50%}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--btn) var(--p),var(--line) var(--p))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;background:#fff;border:0;box-shadow:0 .5px 4px rgba(0,0,0,.28),0 0 0 .5px rgba(0,0,0,.08);transition:transform .15s var(--ease)}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.12)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--btn)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:0;box-shadow:0 .5px 4px rgba(0,0,0,.28)}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:10px;background:var(--bg-2)}
+.seg button{border:0;background:transparent;height:30px;padding:0 12px;border-radius:8px;font-size:13px;font-weight:500;color:var(--fg-2);cursor:pointer;transition:background .25s var(--ease),color .25s}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.textbtn{border:0;background:none;padding:0;color:var(--accent);font-size:14px;cursor:pointer}
+.textbtn:hover{text-decoration:underline}
+
+/* dock */
+.dock{position:sticky;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:20;display:flex;justify-content:center;margin-top:22px;pointer-events:none}
+.dock-in{pointer-events:auto;display:flex;align-items:center;gap:6px;padding:6px;border-radius:999px;background:var(--dock-bg);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border:1px solid var(--line-2);box-shadow:0 10px 40px rgba(0,0,0,.16);max-width:100%}
+.dock .count{font:500 13px var(--mono);color:var(--fg-2);padding:0 8px;white-space:nowrap}
+.icon-btn{display:grid;place-items:center;width:40px;height:40px;flex:0 0 auto;border-radius:50%;border:0;background:transparent;color:var(--fg);cursor:pointer;transition:background .2s}
+.icon-btn:hover{background:var(--bg-2)}
+.icon-btn[disabled]{opacity:.3;cursor:default;background:transparent}
+.icon-btn svg{width:18px;height:18px}
+.dock .btn{height:40px;padding:0 18px;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.kbd{font-size:12px;color:var(--fg-3);text-align:center;margin-top:10px}
+@media (max-width:560px){.kbd{display:none}.dock .count{display:none}}
+
+/* viz shared */
+.card{background:var(--bg-2);border-radius:16px;padding:12px 14px 14px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;color:var(--fg-2);font-weight:500;margin-bottom:8px}
+.card-h b{font:500 12px var(--mono);color:var(--fg-3)}
+.vgrid{display:grid;gap:14px}
+.duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.duo.wide{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}
+.duo.wide2{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr)}
+@media (max-width:640px){.duo,.duo.wide,.duo.wide2{grid-template-columns:minmax(0,1fr)}}
+.h-150{height:150px}.h-180{height:180px}.h-200{height:200px}.h-220{height:220px}.h-260{height:260px}.h-120{height:120px}.h-90{height:90px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--fg-2);margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:14px;height:3px;border-radius:2px;background:currentColor}
+.legend i.dash{background:repeating-linear-gradient(90deg,currentColor 0 4px,transparent 4px 7px)}
+.legend i.band{height:10px;border-radius:3px;opacity:.25}
+.readout{font:13px/1.5 var(--mono);color:var(--fg-2);min-height:20px}
+.readout b{color:var(--fg);font-weight:600}
+
+/* step 0 tiles */
+.tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+@media (max-width:640px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.tile{margin:0;position:relative;border-radius:10px;overflow:hidden;background:#0b0c0e;aspect-ratio:16/9;transition:transform .45s var(--spring),box-shadow .45s var(--ease),opacity .45s}
+.tile canvas{height:100%}
+.tile figcaption{position:absolute;left:6px;bottom:4px;right:6px;font:500 9.5px var(--font);color:rgba(255,255,255,.92);text-shadow:0 1px 2px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .tag{position:absolute;top:5px;left:5px;height:18px;padding:0 7px;border-radius:999px;font:600 9.5px var(--font);display:none;align-items:center;color:#fff;background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.tile.ref .tag,.tile.cal .tag{display:inline-flex}
+.tile.cal{box-shadow:0 0 0 2px var(--c-memory)}
+.tile.cal .tag{background:var(--c-memory)}
+.tile.ref{opacity:.9}
+
+/* player + strips */
+.player{position:relative;border-radius:16px;overflow:hidden;aspect-ratio:16/9;background:#0b0c0e;max-width:100%}
+.player canvas{position:absolute;inset:0;height:100%}
+.transport{display:flex;align-items:center;gap:12px;margin-top:10px}
+.transport input{flex:1;min-width:0}
+.transport .mono{font-size:12px;color:var(--fg-2);white-space:nowrap}
+.strip{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:5px}
+@media (max-width:640px){.strip{grid-template-columns:repeat(8,minmax(0,1fr))}}
+.slot{position:relative;border:0;padding:0;aspect-ratio:16/9;border-radius:6px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);cursor:pointer;overflow:hidden;transition:transform .3s var(--spring),box-shadow .2s}
+.slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(.85);transition:opacity .35s var(--ease),transform .45s var(--spring)}
+.slot.in img{opacity:1;transform:none}
+.slot span{position:absolute;right:3px;bottom:1px;font:500 9px var(--mono);color:var(--fg-3)}
+.slot.in span{color:rgba(255,255,255,.9);text-shadow:0 1px 2px rgba(0,0,0,.7)}
+.slot[aria-pressed="true"]{box-shadow:0 0 0 2px var(--btn);transform:translateY(-2px)}
+.slot:hover{transform:translateY(-2px)}
+
+/* compare */
+.compare{position:relative;border-radius:16px;overflow:hidden;aspect-ratio:16/9;background:#0b0c0e;touch-action:pan-y;cursor:ew-resize;--x:100%;max-width:100%}
+.compare canvas{position:absolute;inset:0;height:100%}
+.compare .masked{clip-path:inset(0 0 0 var(--x))}
+.cmp-handle{transition:opacity .3s;position:absolute;top:0;bottom:0;left:var(--x);width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 8px rgba(0,0,0,.4);pointer-events:none}
+.cmp-handle span{position:absolute;top:50%;left:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);display:grid;place-items:center}
+.cmp-handle span::before{content:"";width:12px;height:8px;background:linear-gradient(90deg,#1d1d1f 0 2px,transparent 2px 10px,#1d1d1f 10px)}
+.cmp-label{transition:opacity .3s;position:absolute;top:12px;font:600 11px var(--font);color:#fff;padding:4px 9px;border-radius:999px;background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);pointer-events:none}
+.cmp-label.l{left:12px}.cmp-label.r{right:12px}
+.det{width:100%;border-collapse:collapse;font-size:13px}
+.det td{padding:6px 0;border-bottom:1px solid var(--line-2);color:var(--fg-2)}
+.det td:last-child{text-align:right;font-family:var(--mono)}
+.det .sw{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:8px;vertical-align:0}
+
+/* encoder */
+.enc-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.62fr) minmax(0,.9fr);gap:14px;align-items:center}
+@media (max-width:640px){.enc-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.enc-model{grid-column:1/-1}}
+.enc-in{margin:0;display:grid;gap:6px}
+.sq{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:#0b0c0e;max-width:100%}
+.sq canvas{position:absolute;inset:0;height:100%}
+.enc-in figcaption{font:500 12px var(--mono);color:var(--fg-3);text-align:center}
+.enc-model{display:grid;gap:4px;justify-items:start;padding:16px;border-radius:16px;background:var(--bg-2)}
+.enc-model b{font-size:17px;letter-spacing:-.02em}
+.enc-model span{font-size:13px;color:var(--fg-2)}
+.bc{display:grid;grid-template-columns:72px minmax(0,1fr) 92px;gap:12px;align-items:center}
+.bc canvas{height:26px;border-radius:5px}
+.bc .bl{font-size:13px;color:var(--fg-2)}
+.bc .bn{font:500 12px var(--mono);color:var(--fg-3);text-align:right}
+.bc.final canvas{height:34px}
+.bc.final .bl{color:var(--fg);font-weight:600}
+@media (max-width:560px){.bc{grid-template-columns:58px minmax(0,1fr);}.bc .bn{grid-column:2;text-align:left;margin-top:-6px}}
+.peek{font:12px/1.5 var(--mono);color:var(--fg-3);overflow-wrap:anywhere}
+
+/* windows picker */
+.wpick{display:flex;align-items:flex-end;gap:3px;height:58px;padding-top:4px}
+.wbar{flex:1 1 0;min-width:0;height:100%;border:0;padding:0;background:transparent;cursor:pointer;display:flex;align-items:flex-end;border-radius:5px}
+.wbar i{display:block;width:100%;border-radius:4px;background:var(--line);transition:height .5s var(--spring),background .3s}
+.wbar[aria-pressed="true"] i{background:var(--fg)}
+.wbar:hover i{background:var(--fg-3)}
+.wpick-axis{display:flex;justify-content:space-between;font:500 11px var(--mono);color:var(--fg-3);margin-top:6px}
+
+/* captions */
+.capframes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.capframes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.capf{margin:0;display:grid;gap:8px;align-content:start}
+.capf .player{border-radius:10px}
+.capf figcaption{font-size:13px;line-height:1.4;color:var(--fg-2);min-height:3.6em}
+.capf .ts{font:500 11px var(--mono);color:var(--fg-3);display:block;margin-bottom:2px}
+.summary{display:grid;gap:8px;padding:16px 18px;border-radius:16px;background:var(--bg-2)}
+.summary p{font-size:18px;line-height:1.4;letter-spacing:-.015em;color:var(--fg);min-height:2.8em}
+.summary .k{font:600 11px var(--font);letter-spacing:.07em;text-transform:uppercase;color:var(--fg-3)}
+.caret::after{content:"";display:inline-block;width:2px;height:1em;margin-left:2px;vertical-align:-2px;background:var(--btn);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* prompts */
+.plists{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:640px){.plists{grid-template-columns:minmax(0,1fr)}}
+.plist{background:var(--bg-2);border-radius:16px;padding:12px 8px 8px 12px;min-width:0}
+.pl-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;padding:0 4px 8px 0}
+.pl-h .dot{width:8px;height:8px;border-radius:50%}
+.pl-h b{margin-left:auto;font:500 12px var(--mono);color:var(--fg-3)}
+.pl{list-style:none;margin:0;padding:0 4px 0 0;max-height:262px;overflow-y:auto;display:grid;gap:2px;scrollbar-width:thin}
+.pr{width:100%;display:grid;grid-template-columns:minmax(0,1fr) 46px;grid-template-rows:auto 4px;column-gap:8px;row-gap:4px;align-items:center;text-align:left;border:0;background:transparent;padding:6px 6px;border-radius:9px;cursor:pointer;transition:background .2s}
+.pr:hover{background:var(--surface)}
+.pr .t{font-size:12.5px;line-height:1.3;color:var(--fg-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr .v{font:500 12px var(--mono);color:var(--fg-3);text-align:right;grid-row:1/3;grid-column:2}
+.pr .bar{grid-column:1;height:4px;border-radius:2px;background:var(--line-2);overflow:hidden}
+.pr .bar i{display:block;height:100%;width:0;border-radius:2px;background:var(--fg-3);transition:width .7s var(--spring)}
+.pr.max{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.pr.max .t{color:var(--fg);font-weight:600}
+.pr.max .v{color:var(--fg)}
+.pl.n .pr.max .bar i{background:var(--c-normal)}
+.pl.a .pr.max .bar i{background:var(--c-anom)}
+.pr.off .t{text-decoration:line-through;opacity:.45}
+.pr.off .bar i{opacity:.25}
+.pr.off .v{opacity:.45}
+.combo{display:grid;gap:8px}
+.cb-row{display:grid;grid-template-columns:96px minmax(0,1fr) 120px;gap:10px;align-items:center;font-size:13px;color:var(--fg-2)}
+.cb-row .track2{height:10px;border-radius:5px;background:var(--line-2);overflow:hidden}
+.cb-row .track2 i{display:block;height:100%;width:0;border-radius:5px;transition:width .8s var(--spring)}
+.cb-row .mono{text-align:right;font-size:12px;color:var(--fg-2)}
+.cb-row.tot{color:var(--fg);font-weight:600}
+.cb-row.tot .mono{color:var(--fg);font-weight:600}
+@media (max-width:560px){.cb-row{grid-template-columns:70px minmax(0,1fr) 96px}}
+
+/* memory query */
+.nn{list-style:none;margin:0;padding:0;display:grid;gap:2px;max-height:200px;overflow-y:auto}
+.nn li{display:grid;grid-template-columns:26px minmax(0,1fr) 52px;gap:8px;align-items:center;font-size:12.5px;color:var(--fg-2);padding:4px 2px;opacity:0;transform:translateY(4px);transition:opacity .3s var(--ease),transform .4s var(--spring)}
+.nn li.in{opacity:1;transform:none}
+.nn li .r{font:500 11px var(--mono);color:var(--fg-3)}
+.nn li .s{font:500 12px var(--mono);text-align:right;color:var(--fg)}
+.nn li .c{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.closest{font-size:13px;color:var(--fg-2);margin-top:8px;line-height:1.45}
+.closest b{color:var(--fg);font-weight:500}
+
+/* fusion */
+.fuse{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 14px;padding:10px 0 4px}
+.gauge{display:grid;justify-items:center;gap:4px}
+.gauge svg{width:108px;height:108px}
+.gauge.big svg{width:138px;height:138px}
+.gauge .gl{font-size:12px;color:var(--fg-2);font-weight:500}
+.gauge text{font-family:var(--mono);font-weight:600;fill:var(--fg)}
+.op{font:500 15px var(--mono);color:var(--fg-3);white-space:nowrap}
+@media (max-width:560px){.gauge svg{width:84px;height:84px}.gauge.big svg{width:104px;height:104px}}
+
+/* alert */
+.alert-top{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:stretch}
+@media (max-width:640px){.alert-top{grid-template-columns:minmax(0,1fr)}}
+.tiles4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mt{background:var(--bg-2);border-radius:14px;padding:10px 12px}
+.mt .k{font-size:12px;color:var(--fg-3);font-weight:500}
+.mt .v{font:600 24px var(--mono);letter-spacing:-.03em;color:var(--fg);font-variant-numeric:tabular-nums}
+.mt .s{font:11px var(--mono);color:var(--fg-3)}
+
+/* architecture */
+.arch{padding-block:104px 24px}
+.recap{margin-top:28px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;padding:16px 20px;border-radius:18px;background:var(--bg-2);font-size:14px;color:var(--fg-2)}
+.recap b{color:var(--fg);font-weight:600}
+.recap .k{font:600 11px var(--font);letter-spacing:.07em;text-transform:uppercase;color:var(--c-normal)}
+.dg-wide{max-width:1760px;margin:40px auto 0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.dgfig{margin:0;background:var(--dg-paper);border:1px solid var(--line-2);border-radius:24px;box-shadow:var(--shadow);overflow:hidden}
+.dg-bar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 16px;padding:12px 16px 12px 20px;border-bottom:1px solid var(--line-2);font-size:13px;color:var(--fg-2)}
+.dg-scroll{overflow:auto;padding:14px;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.dg{display:block;width:100%;height:auto;max-width:none}
+.dgfig.full .dg{width:1682px;height:auto}
+.dn{cursor:pointer;outline:none}
+.dn .shp{transition:stroke-width .2s var(--ease)}
+.dn:hover .shp,.dn:focus-visible .shp{stroke-width:2.6}
+.dn:focus-visible .shp{stroke:var(--btn)!important}
+
+/* details */
+.details{padding-block:96px 112px}
+.dt-grid{display:grid;grid-template-columns:200px minmax(0,1fr);gap:64px;margin-top:48px;align-items:start}
+.toc{position:sticky;top:calc(80px + env(safe-area-inset-top,0px))}
+.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:1px;border-left:1px solid var(--line)}
+.toc a{display:flex;gap:10px;align-items:baseline;padding:6px 0 6px 14px;margin-left:-1px;border-left:2px solid transparent;font-size:14px;color:var(--fg-3);transition:color .2s,border-color .2s}
+.toc a span{font:500 11px var(--mono);min-width:20px;color:var(--fg-3)}
+.toc a:hover{color:var(--fg);text-decoration:none}
+.toc a.on{color:var(--fg);border-left-color:var(--fg);font-weight:500}
+@media (max-width:900px){.dt-grid{grid-template-columns:minmax(0,1fr);gap:0;margin-top:24px}.toc{display:none}}
+.sd{padding-block:44px;border-top:1px solid var(--line-2);scroll-margin-top:72px;min-width:0}
+.sd:first-child{border-top:0;padding-top:4px}
+.sd-head{display:flex;align-items:center;flex-wrap:wrap;gap:12px 14px}
+.sd-num{display:grid;place-items:center;min-width:36px;height:36px;padding:0 9px;border-radius:11px;background:var(--fg);color:var(--bg);font:600 13px var(--mono)}
+.sd-num.act{background:var(--c-action);color:#fff}
+.sd-num.mem{background:var(--c-memory);color:#fff}
+.sd h3{margin:0;font-size:clamp(24px,2.6vw,32px);line-height:1.1;letter-spacing:-.035em;font-weight:700}
+.sd-open{margin-left:auto;font-size:14px}
+.sd-lead{margin-top:12px;font-size:clamp(18px,1.6vw,20px);line-height:1.45;color:var(--fg-2);letter-spacing:-.014em;max-width:38em}
+.io{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:22px 0 0}
+.io div{background:var(--bg-2);border-radius:14px;padding:12px 16px}
+.io dt{font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);margin-bottom:3px}
+.io dd{margin:0;font-size:15px;line-height:1.45;color:var(--fg)}
+@media (max-width:560px){.io{grid-template-columns:minmax(0,1fr)}}
+.sd h4{margin:28px 0 8px;font:600 11px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3)}
+.sd .t{font-size:16px;line-height:1.62;color:var(--fg-2);max-width:42em}
+.sd .t+.t{margin-top:10px}
+.sd b{color:var(--fg);font-weight:600}
+.sd i,.formula i{font-style:italic}
+.steps{list-style:none;margin:0;padding:0;counter-reset:st;display:grid;gap:10px;max-width:42em}
+.steps li{counter-increment:st;display:grid;grid-template-columns:28px minmax(0,1fr);gap:6px;font-size:16px;line-height:1.55;color:var(--fg-2)}
+.steps li::before{content:counter(st);display:grid;place-items:center;width:22px;height:22px;margin-top:1px;border-radius:50%;background:var(--bg-2);font:600 11px var(--mono);color:var(--fg-2)}
+.formula{margin-top:16px;padding:16px 20px;border-radius:14px;background:var(--bg-2);font:15px/1.75 var(--mono);color:var(--fg);overflow-x:auto;max-width:42em}
+.formula i{font-family:var(--font)}
+.flowline{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.flowline span{display:inline-flex;align-items:center;height:32px;padding:0 13px;border-radius:999px;background:var(--bg-2);font-size:14px;color:var(--fg);white-space:nowrap}
+.flowline i{font-style:normal;color:var(--fg-3)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:22px}
+.two>div{background:var(--bg-2);border-radius:16px;padding:16px 20px}
+.two h5{margin:0 0 8px;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.two ul{margin:0;padding-left:18px;display:grid;gap:6px}
+.two li{font-size:14.5px;line-height:1.5;color:var(--fg-2)}
+@media (max-width:640px){.two{grid-template-columns:minmax(0,1fr)}}
+.tbl-wrap{overflow-x:auto;margin-top:18px;max-width:42em}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl td{padding:9px 0;border-bottom:1px solid var(--line-2);vertical-align:top}
+.tbl td:first-child{color:var(--fg-2);padding-right:16px}
+.tbl td:last-child{font-family:var(--mono);font-size:13px;color:var(--fg);text-align:right;white-space:nowrap}
+footer{border-top:1px solid var(--line-2);padding-block:28px 40px;font-size:12px;color:var(--fg-3);line-height:1.6}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+@media (max-width:900px){.hero{padding-block:44px 48px}.hero-grid{grid-template-columns:minmax(0,1fr);gap:36px}}
+</style>
+
+<style>
+/* B+J additions: one extra score colour for the judge, the prompt card, the wider diagram */
+:root{--c-judge:#b4479c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c-judge:#f07acb}}
+:root[data-theme="dark"]{--c-judge:#f07acb}
+.k-judge{color:var(--c-judge)!important}
+.dgfig.full .dg{width:1360px}
+.prompt{font-size:13px;line-height:1.5;color:var(--fg-2);max-height:262px;overflow-y:auto;padding-right:4px}
+.prompt .pk{color:var(--fg-3);margin:0 0 4px}
+.prompt ul{margin:0 0 10px;padding-left:18px;display:grid;gap:2px}
+.prompt .pn{color:var(--fg);font-weight:600;margin:0 0 10px}
+.sibling{margin-top:18px;font-size:14px;color:var(--fg-3)}
+</style>
+
+<nav class="nav" aria-label="Page">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">Memory + Judge</a>
+    <div class="nav-links"><a href="#walkthrough">Walkthrough</a><a href="#architecture">Architecture</a><a class="opt" href="#details">In detail</a></div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">Video anomaly detection, no prompts, no training</p>
+      <h1>Memory + Judge</h1>
+      <p class="lead">The system remembers <b>what normal footage looks and reads like</b>. A new moment scores high when nothing in memory resembles it, and higher still when Gemma, shown the closest normal moments, judges it abnormal. Step through it below and watch each number being worked out.</p>
+      <div class="cta"><a class="btn" href="#walkthrough">Start the walkthrough</a><a class="link" href="#architecture">See the architecture</a></div>
+      <p class="authors"><span>By</span><b>Prudhvi</b><b>Yashwanth</b><b>Nishkarsh</b></p>
+    </div>
+    <figure class="hero-demo" aria-label="Example clip with its anomaly score">
+      <div class="screen">
+        <canvas id="heroCv"></canvas>
+        <div class="hud"><span class="rec">CAM 04 · 30 fps</span><span class="mono" id="heroTc">00:00.0</span></div>
+        <span class="badge" id="heroBadge">Normal</span>
+      </div>
+      <div class="track">
+        <div class="track-h"><span>Score per frame, in spreads above normal</span><span>alert above <b class="mono">z 3</b></span></div>
+        <canvas id="heroTrack"></canvas>
+      </div>
+      <p class="capline"><span class="k">Gemma</span><span id="heroCap">Traffic moves normally past a row of shops.</span></p>
+    </figure>
+  </div>
+</header>
+
+<section class="sim" id="walkthrough">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Walkthrough</p>
+      <h2>Follow one clip through every step.</h2>
+      <p class="sub">A 24-second street scene in which a car drifts into the oncoming lane and hits a van. Run each step, inspect what it produces, and change the settings to see how the score responds.</p>
+      <span class="note-pill">Illustrative: the clip, captions, vectors and Gemma's ratings are synthetic. The formulas and defaults are the model's.</span>
+    </div>
+    <div class="rail" id="rail" role="list"></div>
+    <div class="stage" id="stage">
+      <div class="viz" id="viz"></div>
+      <aside class="panel" id="panel"></aside>
+    </div>
+    <div class="dock">
+      <div class="dock-in">
+        <button class="icon-btn" id="prevBtn" aria-label="Previous step"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg></button>
+        <span class="count" id="count">1 / 12</span>
+        <button class="icon-btn" id="nextBtn" aria-label="Skip to next step"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4.5 13 10l-5.5 5.5"/></svg></button>
+        <button class="btn" id="mainBtn">Build the memory</button>
+      </div>
+    </div>
+    <p class="kbd">Use ← and → to move between steps.</p>
+  </div>
+</section>
+
+<section class="arch" id="architecture">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Architecture</p>
+      <h2>How a video becomes a score.</h2>
+      <p class="sub">A video is sampled, encoded, grouped into 4-second windows and described in words. Each window is compared with a memory of normal footage, by picture and by caption, and a judge reads the caption next to the closest normal moments. The scores are added and mapped back onto every frame. No model is trained and no incident is described in advance.</p>
+    </div>
+    <div class="recap" id="recap" hidden></div>
+  </div>
+  <div class="dg-wide">
+    <figure class="dgfig" id="dgfig">
+      <div class="dg-bar"><span>Select a numbered block to open that step in the walkthrough.</span><div class="seg" role="group" aria-label="Diagram size" data-seg="zoom"><button type="button" data-v="fit" aria-pressed="true">Fit</button><button type="button" data-v="full" aria-pressed="false">Actual size</button></div></div>
+      <div class="dg-scroll"><svg id="dg" class="dg" viewBox="0 0 1360 690" width="1360" height="690" role="group" aria-label="B+J pipeline diagram" font-family="Helvetica, Arial, &quot;Liberation Sans&quot;, sans-serif"><defs><marker id="dgArrow" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,1 L10,5 L0,9 Z" style="fill:var(--dg-edge)"/></marker></defs><g class="dn-static"><rect x="20" y="40" width="150" height="90" rx="12" class="shp" style="fill:var(--dg-io-f);stroke:var(--dg-proc-s)" stroke-width="1"/><text x="95.0" y="82.0" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="95.0" dy="0.00" font-weight="700">Input video</tspan><tspan x="95.0" dy="14.64">any length</tspan></text></g><g class="dn" data-go="1" tabindex="0" role="button" aria-label="① Frame sampling: open this step in the walkthrough"><rect x="200" y="40" width="170" height="90" rx="12" class="shp" style="fill:var(--dg-proc-f);stroke:var(--dg-proc-s)" stroke-width="1"/><text x="285.0" y="82.0" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="285.0" dy="0.00" font-weight="700">① Frame sampling</tspan><tspan x="285.0" dy="14.64">1 frame per second</tspan></text></g><g class="dn" data-go="2" tabindex="0" role="button" aria-label="② CLIP image encoder ❄: open this step in the walkthrough"><rect x="400" y="40" width="200" height="90" rx="12" class="shp" style="fill:var(--dg-blue-f);stroke:var(--dg-blue-s)" stroke-width="1"/><text x="500.0" y="74.7" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="500.0" dy="0.00" font-weight="700">② CLIP image encoder ❄</tspan><tspan x="500.0" dy="14.64">ViT-L/14, whole frame,</tspan><tspan x="500.0" dy="14.64">full + ½ scale averaged</tspan></text></g><g class="dn" data-go="3" tabindex="0" role="button" aria-label="③ Sliding windows: open this step in the walkthrough"><rect x="630" y="40" width="170" height="90" rx="12" class="shp" style="fill:var(--dg-proc-f);stroke:var(--dg-proc-s)" stroke-width="1"/><text x="715.0" y="74.7" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="715.0" dy="0.00" font-weight="700">③ Sliding windows</tspan><tspan x="715.0" dy="14.64">4 s window · 1 s stride</tspan><tspan x="715.0" dy="14.64">mean image vector</tspan></text></g><g class="dn" data-go="4" tabindex="0" role="button" aria-label="④ Captions ❄: open this step in the walkthrough"><rect x="830" y="40" width="220" height="90" rx="12" class="shp" style="fill:var(--dg-blue-f);stroke:var(--dg-blue-s)" stroke-width="1"/><text x="940.0" y="74.7" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="940.0" dy="0.00" font-weight="700">④ Captions ❄</tspan><tspan x="940.0" dy="14.64">Gemma 4 31B: ≤ 4 frames,</tspan><tspan x="940.0" dy="14.64">then one sentence</tspan></text></g><g class="dn" data-go="5" tabindex="0" role="button" aria-label="⑤ Sentence vectors ❄: open this step in the walkthrough"><rect x="1080" y="40" width="260" height="90" rx="12" class="shp" style="fill:var(--dg-blue-f);stroke:var(--dg-blue-s)" stroke-width="1"/><text x="1210.0" y="74.7" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="1210.0" dy="0.00" font-weight="700">⑤ Sentence vectors ❄</tspan><tspan x="1210.0" dy="14.64">MPNet; subtract the video’s</tspan><tspan x="1210.0" dy="14.64">mean caption vector (α = 1)</tspan></text></g><path d="M170,85 L200,85" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M370,85 L400,85" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M600,85 L630,85" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M800,85 L830,85" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M1050,85 L1080,85" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><g class="dn" data-go="0" tabindex="0" role="button" aria-label="Normal memory (prepared once): open this step in the walkthrough"><path d="M20,220 H334 L350,236 V400 H20 Z" class="shp" style="fill:var(--dg-yel-f);stroke:var(--dg-yel-s)" stroke-width="1"/><path d="M334,220 V236 H350" style="fill:none;stroke:var(--dg-yel-s)" stroke-width="1"/><text x="185.0" y="277.7" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="185.0" dy="0.00" font-weight="700">Normal memory (prepared once)</tspan><tspan x="185.0" dy="14.64">every window of normal clips:</tspan><tspan x="185.0" dy="14.64">CLIP image vector · caption ·</tspan><tspan x="185.0" dy="14.64">caption vector centred per clip</tspan><tspan x="185.0" dy="14.64">leave-own-clip-out novelty →</tspan><tspan x="185.0" dy="14.64">median, IQR/1.349 · judge mean, std</tspan></text></g><g class="dn" data-go="7" tabindex="0" role="button" aria-label="⑦ Image novelty: open this step in the walkthrough"><rect x="630" y="220" width="170" height="110" rx="12" class="shp" style="fill:var(--dg-grn-f);stroke:var(--dg-grn-s)" stroke-width="1"/><text x="715.0" y="257.4" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="715.0" dy="0.00" font-weight="700">⑦ Image novelty</tspan><tspan x="715.0" dy="14.64">1 − max cos to</tspan><tspan x="715.0" dy="14.64">memory images</tspan><tspan x="715.0" dy="14.64">→ z_img</tspan></text></g><g class="dn" data-go="6" tabindex="0" role="button" aria-label="⑥ Caption novelty: open this step in the walkthrough"><rect x="830" y="220" width="220" height="110" rx="12" class="shp" style="fill:var(--dg-grn-f);stroke:var(--dg-grn-s)" stroke-width="1"/><text x="940.0" y="257.4" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="940.0" dy="0.00" font-weight="700">⑥ Caption novelty</tspan><tspan x="940.0" dy="14.64">1 − max cos to centred</tspan><tspan x="940.0" dy="14.64">memory captions</tspan><tspan x="940.0" dy="14.64">→ z_cap</tspan></text></g><g class="dn" data-go="8" tabindex="0" role="button" aria-label="⑧ Memory-aware judge ❄: open this step in the walkthrough"><rect x="1080" y="220" width="260" height="110" rx="12" class="shp" style="fill:var(--dg-blue-f);stroke:var(--dg-blue-s)" stroke-width="1"/><text x="1210.0" y="257.4" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="1210.0" dy="0.00" font-weight="700">⑧ Memory-aware judge ❄</tspan><tspan x="1210.0" dy="14.64">caption + 8 nearest normal</tspan><tspan x="1210.0" dy="14.64">captions → Gemma rates 0–9</tspan><tspan x="1210.0" dy="14.64">z_J = (r − mean) / std</tspan></text></g><path d="M715,130 L715,220" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M1120,130 L1120,175 L940,175 L940,220" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M1250,130 L1250,220" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M350,250 L630,250" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" stroke-dasharray="6 5" marker-end="url(#dgArrow)"/><path d="M350,370 L1000,370 L1000,330" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" stroke-dasharray="6 5" marker-end="url(#dgArrow)"/><path d="M1000,370 L1180,370 L1180,330" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" stroke-dasharray="6 5" marker-end="url(#dgArrow)"/><g class="dn" data-go="7" tabindex="0" role="button" aria-label="Memory score B: open this step in the walkthrough"><rect x="630" y="440" width="420" height="80" rx="12" class="shp" style="fill:var(--dg-grn-f);stroke:var(--dg-grn-s)" stroke-width="1"/><text x="840.0" y="477.0" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="840.0" dy="0.00" font-weight="700">Memory score B</tspan><tspan x="840.0" dy="14.64">B = z_cap + 0.25 · z_img</tspan></text></g><g class="dn" data-go="9" tabindex="0" role="button" aria-label="⑨ Fusion: open this step in the walkthrough"><rect x="1080" y="440" width="260" height="80" rx="12" class="shp" style="fill:var(--dg-grn-f);stroke:var(--dg-grn-s)" stroke-width="1"/><text x="1210.0" y="477.0" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="1210.0" dy="0.00" font-weight="700">⑨ Fusion</tspan><tspan x="1210.0" dy="14.64">score = B + 1.0 · z_J</tspan></text></g><path d="M715,330 L715,440" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M900,330 L900,440" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M1050,480 L1080,480" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M1300,330 L1300,440" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><g class="dn" data-go="10" tabindex="0" role="button" aria-label="⑩ Frame scores: open this step in the walkthrough"><rect x="630" y="580" width="420" height="90" rx="12" class="shp" style="fill:var(--dg-proc-f);stroke:var(--dg-proc-s)" stroke-width="1"/><text x="840.0" y="614.7" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="840.0" dy="0.00" font-weight="700">⑩ Frame scores</tspan><tspan x="840.0" dy="14.64">mean of covering windows, then a centred</tspan><tspan x="840.0" dy="14.64">moving average of min(36 s, length / 4)</tspan></text></g><g class="dn" data-go="11" tabindex="0" role="button" aria-label="⑪ Alert?: open this step in the walkthrough"><polygon points="475.0,580 560,625.0 475.0,670 390,625.0" class="shp" style="fill:var(--dg-org-f);stroke:var(--dg-org-s)" stroke-width="1"/><text x="475.0" y="622.0" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="475.0" dy="0.00" font-weight="700">⑪ Alert?</tspan><tspan x="475.0" dy="14.64">ŝ &gt; 3</tspan></text></g><g class="dn-static"><rect x="20" y="580" width="260" height="90" rx="12" class="shp" style="fill:var(--dg-io-f);stroke:var(--dg-proc-s)" stroke-width="1"/><text x="150.0" y="614.7" font-size="12" text-anchor="middle" style="fill:var(--dg-text)"><tspan x="150.0" dy="0.00" font-weight="700">Output</tspan><tspan x="150.0" dy="14.64">score per frame · alerts ·</tspan><tspan x="150.0" dy="14.64">caption per window</tspan></text></g><path d="M1210,520 L1210,625 L1050,625" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M630,625 L560,625" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><path d="M390,625 L280,625" fill="none" style="stroke:var(--dg-edge)" stroke-width="1.4" marker-end="url(#dgArrow)"/><g class="dn-static"><rect x="20" y="425" width="250" height="135" rx="6" style="fill:var(--dg-proc-f);stroke:var(--dg-leg-s)"/><text x="32" y="445" font-size="12" font-weight="700" style="fill:var(--dg-muted)">Legend</text><rect x="32" y="458" width="26" height="14" rx="2" style="fill:var(--dg-blue-f);stroke:var(--dg-blue-s)"/><text x="68" y="469" font-size="11" style="fill:var(--dg-muted)">Frozen pretrained model ❄</text><rect x="32" y="478" width="26" height="14" rx="2" style="fill:var(--dg-proc-f);stroke:var(--dg-proc-s)"/><text x="68" y="489" font-size="11" style="fill:var(--dg-muted)">Processing step (no learning)</text><rect x="32" y="498" width="26" height="14" rx="2" style="fill:var(--dg-yel-f);stroke:var(--dg-yel-s)"/><text x="68" y="509" font-size="11" style="fill:var(--dg-muted)">Stored once, beforehand</text><rect x="32" y="518" width="26" height="14" rx="2" style="fill:var(--dg-grn-f);stroke:var(--dg-grn-s)"/><text x="68" y="529" font-size="11" style="fill:var(--dg-muted)">Scoring</text><rect x="32" y="538" width="26" height="14" rx="2" style="fill:var(--dg-org-f);stroke:var(--dg-org-s)"/><text x="68" y="549" font-size="11" style="fill:var(--dg-muted)">Decision</text></g></svg></div>
+    </figure>
+  </div>
+</section>
+
+<section class="details" id="details">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">In detail</p>
+      <h2>The architecture, stage by stage.</h2>
+      <p class="sub">What each block takes in, what it gives out, how it works and why it is there.</p>
+    </div>
+    <div class="dt-grid">
+      <nav class="toc" aria-label="Stages">
+        <ol>
+          <li><a href="#d-overview"><span>·</span>At a glance</a></li>
+          <li><a href="#d-0"><span>0</span>Normal memory</a></li>
+          <li><a href="#d-1"><span>1–4</span>Perception</a></li>
+          <li><a href="#d-5"><span>5</span>Sentence vectors</a></li>
+          <li><a href="#d-6"><span>6–7</span>Novelty and B</a></li>
+          <li><a href="#d-8"><span>8</span>Judge</a></li>
+          <li><a href="#d-9"><span>9</span>Fusion</a></li>
+          <li><a href="#d-10"><span>10–11</span>Frames and alerts</a></li>
+          <li><a href="#d-settings"><span>·</span>Settings</a></li>
+        </ol>
+      </nav>
+      <div class="dt-body">
+
+        <article class="sd" id="d-overview">
+          <div class="sd-head"><span class="sd-num">·</span><h3>At a glance</h3></div>
+          <p class="sd-lead">A video goes in. A score for every frame, alerts and a one-sentence description of every few seconds come out. Nothing is trained, and no list of incidents is written down anywhere.</p>
+          <h4>The path of one video</h4>
+          <div class="flowline">
+            <span>Frames at 1 fps</span><i>→</i><span>Frame vectors</span><i>→</i><span>4-second windows</span><i>→</i><span>Captions</span><i>→</i><span>Centred caption vectors</span><i>→</i><span>Novelty and judge scores</span><i>→</i><span>Window score</span><i>→</i><span>Frame scores</span><i>→</i><span>Alerts</span>
+          </div>
+          <div class="two">
+            <div><h5>Three frozen models</h5><ul>
+              <li><b>CLIP ViT-L/14</b> turns frames into vectors that can be compared.</li>
+              <li><b>Gemma 4 31B</b> writes what happens in each window and later acts as the judge.</li>
+              <li><b>MPNet</b> turns captions into sentence vectors.</li></ul></div>
+            <div><h5>One fixed reference</h5><ul>
+              <li><b>Normal memory:</b> every window of normal footage, as an image vector, a caption and a centred caption vector.</li>
+              <li>With it, how novel normal windows usually look, and how the judge usually rates them.</li>
+              <li>Prepared beforehand and never changed while a video is scored.</li></ul></div>
+          </div>
+          <h4>The whole score in four lines</h4>
+          <div class="formula">B = z( 1 − max cos(caption, memory captions) ) + 0.25 · z( 1 − max cos(image, memory images) )<br>J = ( Gemma's expected rating − normal mean ) / normal std<br>window score = B + 1.0 · J<br>alert at frame <i>f</i> &nbsp;if&nbsp; smoothed mean of covering window scores &gt; 3</div>
+        </article>
+
+        <article class="sd" id="d-0">
+          <div class="sd-head"><span class="sd-num">0</span><h3>Normal memory</h3><button type="button" class="textbtn sd-open" data-go="0">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Keep everything seen in normal footage, and learn how novel normal itself looks.</p>
+          <dl class="io"><div><dt>Takes</dt><dd>Videos in which nothing goes wrong</dd></div><div><dt>Gives</dt><dd>Window vectors, captions and their reference statistics</dd></div></dl>
+          <h4>How it works</h4>
+          <ol class="steps">
+            <li><span>Each normal video goes through steps 1 to 5 with the same frozen models.</span></li>
+            <li><span>For every window, the memory keeps the image vector, the caption and the caption vector. Caption vectors are centred on their own video's mean.</span></li>
+            <li><span>Every memory window is scored against the rest of the memory with its own video left out. The median and IQR / 1.349 of those novelties become the unit for test scores.</span></li>
+            <li><span>A seeded sample of memory windows is rated by the judge. Their mean and standard deviation calibrate the judge.</span></li>
+          </ol>
+          <h4>Why it is there</h4>
+          <p class="t">"Abnormal" only has meaning against a normal. Calibrating the memory against itself puts every score in the same unit: spreads above what normal footage typically scores.</p>
+        </article>
+
+        <article class="sd" id="d-1">
+          <div class="sd-head"><span class="sd-num">1–4</span><h3>Perception</h3><button type="button" class="textbtn sd-open" data-go="1">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Turn the video into a list of 4-second windows, each with a vector and a sentence.</p>
+          <dl class="io"><div><dt>Takes</dt><dd>The video at its native frame rate</dd></div><div><dt>Gives</dt><dd>Per window: image vector and caption</dd></div></dl>
+          <h4>How it works</h4>
+          <ol class="steps">
+            <li><span><b>Sampling:</b> keep one frame per second.</span></li>
+            <li><span><b>Image vectors:</b> CLIP ViT-L/14 encodes the whole frame at full and half size; the two vectors are averaged and normalised.</span></li>
+            <li><span><b>Windows:</b> 4 seconds long, starting every second; the window vector is the mean of its frame vectors.</span></li>
+            <li><span><b>Captions:</b> Gemma describes up to 4 frames of the window, then joins them into one sentence in time order.</span></li>
+          </ol>
+          <h4>Why it is there</h4>
+          <p class="t">Windows hold actions, not just poses. Captions put the action into words that can be searched by meaning and read by the judge. Whole frames are kept because the background is what the memory knows best.</p>
+        </article>
+
+        <article class="sd" id="d-5">
+          <div class="sd-head"><span class="sd-num">5</span><h3>Sentence vectors and centring</h3><button type="button" class="textbtn sd-open" data-go="5">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Remove what is always true of this camera, keep what is happening.</p>
+          <div class="formula"><i>t̃</i> = normalise( MPNet(caption) − 1.0 · mean of MPNet over the video's captions )</div>
+          <h4>Why it is there</h4>
+          <p class="t">Captions from one camera keep naming the same place. Without centring, a test video filmed somewhere the memory has never seen would look novel in every window. After centring, only change within the video stands out.</p>
+        </article>
+
+        <article class="sd" id="d-6">
+          <div class="sd-head"><span class="sd-num">6–7</span><h3>Novelty and the memory score B</h3><button type="button" class="textbtn sd-open" data-go="6">Open in walkthrough ›</button></div>
+          <p class="sd-lead">How far is this window from the closest thing in normal memory?</p>
+          <div class="formula"><i>z</i><sub>cap</sub> = ( 1 − max cos(<i>t̃</i>, centred memory captions) − median ) / (IQR / 1.349)<br><i>z</i><sub>img</sub> = ( 1 − max cos(<i>v</i><sub>win</sub>, memory images) − median ) / (IQR / 1.349)<br>B = <i>z</i><sub>cap</sub> + 0.25 · <i>z</i><sub>img</sub></div>
+          <h4>Why it is there</h4>
+          <p class="t">B uses no prompts at all. It flags whatever the memory has not seen, which is the core idea: watch normal, then notice the difference. Only the single nearest neighbour counts, so one close normal match is enough to call a window familiar.</p>
+        </article>
+
+        <article class="sd" id="d-8">
+          <div class="sd-head"><span class="sd-num">8</span><h3>Memory-aware judge</h3><button type="button" class="textbtn sd-open" data-go="8">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Novel is not the same as harmful. The judge weighs the difference.</p>
+          <ol class="steps">
+            <li><span>Retrieve the 8 most similar distinct captions from memory.</span></li>
+            <li><span>Ask Gemma, with a fixed generic prompt, how likely the new moment is abnormal compared with those normal moments, as one digit from 0 to 9.</span></li>
+            <li><span>Read the probabilities of the ten digit tokens and take the expected digit as the rating.</span></li>
+            <li><span>Convert to <i>z</i> with the mean and standard deviation of normal memory ratings.</span></li>
+          </ol>
+          <p class="t">The prompt names no category of incident. Each rating is stored by its exact prompt and reused.</p>
+        </article>
+
+        <article class="sd" id="d-9">
+          <div class="sd-head"><span class="sd-num">9</span><h3>Fusion</h3><button type="button" class="textbtn sd-open" data-go="9">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Both terms are already in spreads above normal, so they are added.</p>
+          <div class="formula">window score = B + 1.0 · <i>z</i><sub>J</sub></div>
+        </article>
+
+        <article class="sd" id="d-10">
+          <div class="sd-head"><span class="sd-num">10–11</span><h3>Frame scores and alerts</h3><button type="button" class="textbtn sd-open" data-go="10">Open in walkthrough ›</button></div>
+          <p class="sd-lead">Map window scores back onto every original frame, smooth them, and alert above 3.</p>
+          <div class="formula"><i>s</i>(<i>f</i>) = mean of score(<i>w</i>) over windows covering <i>f</i><br><i>ŝ</i>(<i>f</i>) = centred moving average of <i>s</i> over min(36 s, length / 4)<br>alert(<i>f</i>) = <i>ŝ</i>(<i>f</i>) &gt; 3 &nbsp;&nbsp;(shown as σ(<i>ŝ</i> − 3) &gt; 0.5)</div>
+          <p class="t">Smoothing joins the windows of one event into a single run of alerts. The level 3 is a rule, not a tuned value; ROC-AUC does not depend on it.</p>
+        </article>
+
+        <article class="sd" id="d-settings">
+          <div class="sd-head"><span class="sd-num">·</span><h3>Settings</h3></div>
+          <p class="sd-lead">Every number used above, in one place.</p>
+          <div class="tbl-wrap"><table class="tbl"><tbody>
+            <tr><td>Frames kept</td><td>1 per second</td></tr>
+            <tr><td>Image encoder</td><td>CLIP ViT-L/14 · 768-D · full + 0.5×</td></tr>
+            <tr><td>Window · stride</td><td>4 s · 1 s</td></tr>
+            <tr><td>Captioner and judge</td><td>Gemma 4 31B · Q8_0 · ≤ 4 frames</td></tr>
+            <tr><td>Sentence encoder</td><td>all-mpnet-base-v2 · 768-D</td></tr>
+            <tr><td>Centring α</td><td>1.0</td></tr>
+            <tr><td>Nearest neighbours</td><td>1</td></tr>
+            <tr><td>Robust scale</td><td>IQR / 1.349</td></tr>
+            <tr><td>Image weight</td><td>0.25</td></tr>
+            <tr><td>Judge context</td><td>8 normal captions</td></tr>
+            <tr><td>Judge calibration</td><td>2000 memory windows · seed 0</td></tr>
+            <tr><td>Judge weight λ</td><td>1.0</td></tr>
+            <tr><td>Smoothing</td><td>min(36 s, length / 4)</td></tr>
+            <tr><td>Alert level</td><td>z &gt; 3</td></tr>
+          </tbody></table></div>
+          <p class="sibling">The walkthrough shows 20 normal clips and 200 judge calibration windows to keep it fast in the browser.</p>
+        </article>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Memory + Judge · Prudhvi, Yashwanth, Nishkarsh</span>
+    <span>The walkthrough uses a synthetic clip, captions, vectors and judge ratings. Formulas and default settings follow the model configuration.</span>
+  </div>
+</footer>
+
+<script>
+/* ===== Illustrative B+J model: synthetic clip and vectors, the real formulas ===== */
+const BJ = (() => {
+  const D = 768, FPS = 30, DUR = 24, NATIVE = FPS * DUR;
+  const GT = [12.5, 20.0]; // illustrative labelled incident (s)
+
+  function rng(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function gauss(r) { let u = 0; while (u === 0) u = r(); const v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const sigmoid = z => 1 / (1 + Math.exp(-clamp(z, -60, 60)));
+  const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+
+  const CONCEPTS = ['road', 'vehicle', 'traffic_flow', 'parked', 'pedestrian', 'walking', 'crossing', 'people_group', 'calm', 'talking', 'running', 'boxes', 'carry', 'waiting', 'dusk_light',
+    'swerve', 'collision', 'damage', 'explosion', 'fire_smoke', 'shops'];
+  function basis(names, seed) {
+    const r = rng(seed), out = {}, list = [];
+    for (const n of names) {
+      const v = new Float64Array(D); for (let j = 0; j < D; j++) v[j] = gauss(r);
+      for (const b of list) { let d = 0; for (let j = 0; j < D; j++) d += v[j] * b[j]; for (let j = 0; j < D; j++) v[j] -= d * b[j]; }
+      let n2 = 0; for (let j = 0; j < D; j++) n2 += v[j] * v[j]; n2 = Math.sqrt(n2); for (let j = 0; j < D; j++) v[j] /= n2;
+      list.push(v); out[n] = v;
+    }
+    return out;
+  }
+  const IB = basis(['G', 'SHARED', 'CLUTTER1', 'CLUTTER2', 'NIGHT', ...CONCEPTS], 7);     // CLIP image space
+  const PLACES = ['near the bus stop', 'outside the bakery', 'by the bank', 'beside the café', 'near the school gate', 'outside the pharmacy', 'by the petrol station', 'near the park entrance', 'outside the hotel', 'by the post office', 'near the library', 'beside the market'];
+  const TB = basis(['G', 'STREET', 'DUSK', ...CONCEPTS, ...PLACES.map((_, i) => 'P' + i)], 8);                             // MPNet sentence space
+  function fromCoef(B, coef, noise, seed) {
+    const v = new Float64Array(D);
+    for (const k in coef) { const c = coef[k]; if (!c || !B[k]) continue; const b = B[k]; for (let j = 0; j < D; j++) v[j] += c * b[j]; }
+    if (noise) { const r = rng(seed), s = noise / Math.sqrt(D); for (let j = 0; j < D; j++) v[j] += s * gauss(r); }
+    return v;
+  }
+  const dot = (a, b) => { let s = 0; for (let j = 0; j < D; j++) s += a[j] * b[j]; return s; };
+  const norm = a => Math.sqrt(dot(a, a));
+  const unit = a => { const n = norm(a) || 1e-6, v = new Float64Array(D); for (let j = 0; j < D; j++) v[j] = a[j] / n; return v; };
+  const mean = vs => { const v = new Float64Array(D); for (const x of vs) for (let j = 0; j < D; j++) v[j] += x[j] / vs.length; return v; };
+
+  /* ---------- what is visible at time t ---------- */
+  const bump = (t, a, p, b) => t < a || t > b ? 0 : t < p ? smooth(a, p, t) : 1 - smooth(p, b, t);
+  function incidentConcepts(t) {
+    return {
+      road: .55, vehicle: .55 + .07 * Math.sin(t * .9), pedestrian: .32 + .08 * Math.sin(t * .6 + 1), walking: .3 * (t < 14 ? 1 : .3),
+      calm: .28 * (t < 13 ? 1 : 0), traffic_flow: t < 13 ? .5 + .06 * Math.sin(t * 1.3) : .12, shops: .3,
+      swerve: .55 * smooth(9.4, 12.6, t) * (t < 13.5 ? 1 : 0) + .2 * bump(t, 3.5, 5.5, 7.5),
+      collision: t < 12.9 ? 0 : .8 * (bump(t, 12.9, 13.6, 30) * .6 + .4 * (1 - smooth(13, 24, t)) + (t < 16 ? .25 : 0)),
+      damage: t > 13 ? .55 : 0, explosion: .55 * bump(t, 12.9, 13.3, 14.6),
+      fire_smoke: .65 * smooth(13.2, 15, t) * (1 - .45 * smooth(19, 24, t)),
+      running: .38 * bump(t, 14.5, 17, 21.5), people_group: .3 * smooth(15, 18, t), waiting: .22 * smooth(16, 18, t),
+    };
+  }
+  const CLIP_KINDS = [
+    { name: 'Two-way traffic', extra: {}, dusk: 0 },
+    { name: 'Pedestrian crossing', extra: { crossing: .4, waiting: .2 }, dusk: 0 },
+    { name: 'Parked cars', extra: { parked: .45 }, dusk: 0 },
+    { name: 'Evening traffic', extra: {}, dusk: 1 },
+    { name: 'Delivery stop', extra: { boxes: .3, carry: .3, parked: .2 }, dusk: 0 },
+    { name: 'Busy pavement', extra: { people_group: .25, talking: .15 }, dusk: 0 },
+    { name: 'Traffic light queue', extra: { waiting: .35 }, dusk: 0 },
+    { name: 'Overtaking lane', extra: { swerve: .22 }, dusk: 0 },
+  ];
+  const CLIPS = Array.from({ length: 20 }, (_, i) => {
+    const r = rng(500 + i), kind = CLIP_KINDS[i % CLIP_KINDS.length];
+    return { id: i, kind, seed: 900 + i * 37, jit: Array.from({ length: 8 }, () => .8 + .4 * r()), phase: r() * 6.28, idScale: .32 + .3 * (r() * 2 - 1), cars: 2 + (i % 3), peds: 1 + (i % 2), tint: kind.dusk };
+  });
+  function normalConcepts(c, t) {
+    const j = c.jit, w = 1 + .18 * Math.sin(t * .7 + c.phase);
+    const base = { road: .55 * j[0], vehicle: .52 * j[1] * w, traffic_flow: .48 * j[2] * w, pedestrian: .3 * j[3], walking: .28 * j[4], calm: .28 * j[6] };
+    for (const k in c.kind.extra) base[k] = (base[k] || 0) + c.kind.extra[k] * j[7];
+    return base;
+  }
+  const IDV = {}; const identity = (seed, scale) => IDV[seed + ':' + scale] || (IDV[seed + ':' + scale] = fromCoef(IB, {}, scale, seed));
+  // CLIP ViT-L/14 on the whole (unmasked) frame, at full and half scale, averaged
+  function frameVec(concepts, dusk, seed, idSeed, idScale) {
+    const r = rng(seed * 3 + 11), coef = { G: 1, SHARED: .42, NIGHT: dusk ? .3 : 0, CLUTTER1: .32 * (r() * 2 - 1), CLUTTER2: .32 * (r() * 2 - 1) };
+    for (const k in concepts) coef[k] = (coef[k] || 0) + concepts[k] * .45;
+    const idv = identity(idSeed, idScale), full = fromCoef(IB, coef, .75, seed), half = fromCoef(IB, coef, .86, seed + 77777);
+    for (let j = 0; j < D; j++) { full[j] += idv[j]; half[j] += idv[j]; }
+    return { full: unit(full), half: unit(half), vec: unit(mean([unit(full), unit(half)])) };
+  }
+
+  /* ---------- captions (illustrative Gemma output) ---------- */
+  // sev: how harmful the described moment is, used only to simulate Gemma's rating.
+  const PHASES = [
+    { id: 'flow', until: 9, sev: .02, frame: ['Cars drive in both directions past a row of shops as two people walk on the pavements.', 'A white car and a green car pass each other in front of the shops.', 'Traffic moves steadily past the shops while a pedestrian walks by.'],
+      clause: 'traffic moves normally past a row of shops', tc: { vehicle: .6, road: .55, traffic_flow: .6, pedestrian: .3, walking: .3, calm: .25, shops: .55 } },
+    { id: 'drift', until: 12, sev: .2, frame: ['A red car drifts across the centre line of the street.'], clause: 'a red car drifts across the centre line', tc: { vehicle: .55, road: .5, swerve: .6, traffic_flow: .3, shops: .3 } },
+    { id: 'swerve', until: 13, sev: .5, frame: ['The red car swerves into the oncoming lane toward a blue van.'], clause: 'the car swerves toward an oncoming blue van', tc: { vehicle: .55, road: .45, swerve: .8, shops: .3 } },
+    { id: 'crash', until: 14, sev: .97, frame: ['The red car and the blue van collide head-on in a bright flash.'], clause: 'the two vehicles collide head-on', tc: { collision: .95, vehicle: .6, damage: .5, explosion: .35, road: .4, shops: .3 } },
+    { id: 'smoke', until: 17, sev: .86, frame: ['Smoke rises from the two damaged vehicles stopped in the road.'], clause: 'smoke rises from the damaged vehicles', tc: { fire_smoke: .6, damage: .55, vehicle: .45, collision: .35, shops: .3 } },
+    { id: 'fire', until: 20, sev: .93, frame: ["Flames burn under the red car's bonnet as people run toward it."], clause: "flames break out under the red car's bonnet as people run over", tc: { fire_smoke: .85, damage: .4, running: .35, people_group: .3, vehicle: .4, shops: .3 } },
+    { id: 'after', until: 24, sev: .66, frame: ['Smoke drifts over the wrecked cars while bystanders watch from the roadside.'], clause: 'bystanders watch the smoking wreck from the roadside', tc: { fire_smoke: .45, damage: .35, vehicle: .4, waiting: .3, people_group: .3, pedestrian: .3, shops: .3 } },
+  ];
+  const phaseAt = t => PHASES.find(p => t < p.until) || PHASES[PHASES.length - 1];
+  const frameCaption = s => { const p = phaseAt(s); return p.frame[s % p.frame.length]; };
+  function windowCaption(secs) {
+    const seq = []; for (const s of secs) { const p = phaseAt(s); if (!seq.includes(p)) seq.push(p); }
+    let txt = seq.length === 1 ? seq[0].clause : seq.slice(0, -1).map(p => p.clause).join(', ') + (seq.length > 2 ? ', and then ' : ', then ') + seq[seq.length - 1].clause;
+    txt = txt[0].toUpperCase() + txt.slice(1) + '.';
+    const tc = {}; for (const p of seq) for (const k in p.tc) tc[k] = Math.max(tc[k] || 0, p.tc[k]);
+    return { text: txt, concepts: tc, sev: Math.max(...seq.map(p => p.sev)) };
+  }
+  const NCAP = {
+    'Two-way traffic': [['Cars pass in both directions along a city street.', { vehicle: .6, road: .55, traffic_flow: .6 }], ['A white car and a grey car pass each other on the street.', { vehicle: .7, road: .5, traffic_flow: .5 }], ['Traffic flows steadily along the street.', { traffic_flow: .7, vehicle: .5, road: .5, calm: .2 }]],
+    'Pedestrian crossing': [['Cars slow down as a person crosses the road.', { crossing: .6, pedestrian: .4, vehicle: .45, road: .4 }], ['A pedestrian waits at the kerb, then crosses the street.', { crossing: .55, waiting: .3, pedestrian: .5 }], ['A person walks across the road in front of stopped cars.', { crossing: .6, walking: .35, vehicle: .35 }]],
+    'Parked cars': [['A pedestrian walks past cars parked along the street.', { parked: .6, walking: .4, pedestrian: .4 }], ['Three cars are parked beside the pavement while a person walks by.', { parked: .7, pedestrian: .35, walking: .3 }], ['A car drives past a row of parked cars.', { parked: .5, vehicle: .5, traffic_flow: .35 }]],
+    'Evening traffic': [['Cars with headlights on drive along a street at dusk.', { dusk_light: .6, vehicle: .55, traffic_flow: .5 }], ['Traffic moves along a dim street as the streetlights come on.', { dusk_light: .65, traffic_flow: .5, road: .4 }], ['A car with its headlights on passes lit shop windows.', { dusk_light: .55, vehicle: .5, shops: .35 }]],
+    'Delivery stop': [['A worker unloads boxes from a van parked by the kerb.', { boxes: .65, carry: .45, parked: .35 }], ['A delivery worker carries a box along the pavement.', { carry: .6, boxes: .45, walking: .3 }], ['A white van is parked while a worker walks back and forth.', { parked: .5, walking: .4, vehicle: .3 }]],
+    'Busy pavement': [['People chat on the pavement while traffic flows past.', { people_group: .5, talking: .5, traffic_flow: .35 }], ['Several people walk along a busy pavement.', { people_group: .55, walking: .5, pedestrian: .4 }], ['A small group stands talking near the shops.', { people_group: .5, talking: .55, shops: .4 }]],
+    'Traffic light queue': [['Cars wait in a short queue at a red light.', { waiting: .6, vehicle: .5, road: .35 }], ['A line of cars stands still at a traffic light.', { waiting: .65, vehicle: .5 }], ['Cars start moving again as the queue clears.', { traffic_flow: .5, vehicle: .5, waiting: .3 }]],
+    'Overtaking lane': [['A car overtakes a slower van on an open road.', { swerve: .45, vehicle: .6, road: .5 }], ['A car pulls out to pass a van, then returns to its lane.', { swerve: .5, vehicle: .55, road: .45 }], ['Two vehicles travel along the road, one passing the other.', { vehicle: .65, road: .5, swerve: .3, traffic_flow: .35 }]],
+  };
+  // each memory camera has its own surroundings, which Gemma tends to mention
+  const nCaption = (c, start) => {
+    const list = NCAP[c.kind.name], v = list[Math.floor((start + 2 + c.id * 3) / 7) % list.length], pi = (c.id * 5) % PLACES.length;
+    return { text: v[0].replace(/\.$/, ' ' + PLACES[pi] + '.'), concepts: { ...v[1], ['P' + pi]: .55 } };
+  };
+  // MPNet sentence vector: a function of the caption text alone
+  const TV = new Map();
+  function textVec(text, concepts) {
+    if (TV.has(text)) return TV.get(text);
+    const coef = { G: 1, STREET: .55, DUSK: concepts.dusk_light ? .35 : 0 };
+    for (const k in concepts) coef[k] = (coef[k] || 0) + concepts[k] * .62;
+    const v = unit(fromCoef(TB, coef, .22, hash(text)));
+    TV.set(text, v); return v;
+  }
+  function centerRows(vs, alpha) { const mu = mean(vs); return vs.map(v => { const r = new Float64Array(D); for (let j = 0; j < D; j++) r[j] = v[j] - alpha * mu[j]; return unit(r); }); }
+  function quantile(sorted, q) { const p = (sorted.length - 1) * q, lo = Math.floor(p), hi = Math.ceil(p); return sorted[lo] + (sorted[hi] - sorted[lo]) * (p - lo); }
+  function robustParams(xs) { const s = xs.slice().sort((a, b) => a - b), q1 = quantile(s, .25), q3 = quantile(s, .75); return { median: quantile(s, .5), q1, q3, scale: (q3 - q1) / 1.349 || 1, values: s }; }
+  function windowsOf(frames, L, S) { const out = []; for (let st = 0; st + L <= frames.length; st += S) { const secs = []; for (let s = st; s < st + L; s++) secs.push(s); out.push({ start: st, secs, vec: unit(mean(secs.map(s => frames[s]))) }); } return out; }
+  const pick4 = secs => secs.length <= 4 ? secs.slice() : [0, 1, 2, 3].map(i => secs[Math.round(i * (secs.length - 1) / 3)]);
+
+  /* ---------- the normal memory ---------- */
+  const cache = {};
+  function clipFrames(c) { const k = 'c' + c.id; return cache[k] || (cache[k] = Array.from({ length: DUR }, (_, s) => frameVec(normalConcepts(c, s + .5), c.tint, c.seed + s, 31000 + c.id, c.idScale).vec)); }
+  function testFrames() { return cache.t || (cache.t = Array.from({ length: DUR }, (_, s) => frameVec(incidentConcepts(s), 0, 4242 + s, 39999, .32))); }
+  function memory(alpha) {
+    const key = 'm' + alpha; if (cache[key]) return cache[key];
+    const wins = [];
+    for (const c of CLIPS) {
+      const ws = windowsOf(clipFrames(c), 4, 1).map(w => { const cap = nCaption(c, w.start); return { clip: c.id, start: w.start, img: w.vec, caption: cap.text, raw: textVec(cap.text, cap.concepts) }; });
+      const cen = centerRows(ws.map(w => w.raw), alpha); ws.forEach((w, i) => { w.txt = cen[i]; }); wins.push(...ws);
+    }
+    // leave-own-video-out novelty of every memory window -> robust z parameters
+    for (const w of wins) {
+      let bt = -4, bi = -4;
+      for (const o of wins) { if (o.clip === w.clip) continue; const st = dot(w.txt, o.txt), si = dot(w.img, o.img); if (st > bt) bt = st; if (si > bi) bi = si; }
+      w.tNov = 1 - bt; w.iNov = 1 - bi;
+    }
+    const captions = [...new Set(wins.map(w => w.caption))];
+    const capVec = new Map(wins.map(w => [w.caption, w.raw]));
+    const capClips = new Map(); for (const w of wins) { if (!capClips.has(w.caption)) capClips.set(w.caption, new Set()); capClips.get(w.caption).add(w.clip); }
+    return cache[key] = { wins, captions, capVec, capClips, tz: robustParams(wins.map(w => w.tNov)), iz: robustParams(wins.map(w => w.iNov)) };
+  }
+
+  /* ---------- the memory-aware judge ---------- */
+  function retrieve(vec, mem, k, ownClip) {
+    const c = mem.captions.filter(t => !(ownClip != null && mem.capClips.get(t).size === 1 && mem.capClips.get(t).has(ownClip)));
+    return c.map(t => ({ text: t, s: dot(vec, mem.capVec.get(t)) })).sort((a, b) => b.s - a.s).slice(0, k);
+  }
+  // Simulated Gemma: next-token probabilities over the digits 0-9; the rating is their expectation.
+  function rate(sev, retrieved, text) {
+    const near = retrieved.length ? retrieved[0].s : 0, familiar = clamp((near - .62) / .3, 0, 1);
+    const e = clamp(sev * (1 - .45 * familiar) + (hash(text) % 1000) / 1000 * .09, 0, 1), c = 9 * e, sd = .5 + .9 * e;
+    let p = Array.from({ length: 10 }, (_, d) => Math.exp(-((d - c) ** 2) / (2 * sd * sd)));
+    const z = p.reduce((a, b) => a + b, 0); p = p.map(x => x / z);
+    return { probs: p, rating: p.reduce((a, x, d) => a + d * x, 0) };
+  }
+  const normalSev = text => .01 + ((hash(text + '#') % 1000) / 1000) ** 3 * .42 + (/overtakes|pass a van|passing/.test(text) ? .08 : 0);
+  function judgeCalibration(alpha, k, n) {
+    const key = 'j' + alpha + ':' + k + ':' + n; if (cache[key]) return cache[key];
+    const mem = memory(alpha), r = rng(0), idx = mem.wins.map((_, i) => i);
+    for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    const rows = idx.slice(0, n).sort((a, b) => a - b).map(i => { const w = mem.wins[i]; const ret = retrieve(w.raw, mem, k, w.clip); return { clip: w.clip, start: w.start, caption: w.caption, ...rate(normalSev(w.caption), ret, w.caption) }; });
+    const rs = rows.map(x => x.rating), m = rs.reduce((a, b) => a + b, 0) / rs.length, sd = Math.max(1e-3, Math.sqrt(rs.reduce((a, b) => a + (b - m) ** 2, 0) / rs.length));
+    return cache[key] = { rows, mean: m, std: sd };
+  }
+
+  /* ---------- scoring one test video ---------- */
+  function score(P) {
+    const mem = memory(P.alpha), jc = judgeCalibration(P.alpha, P.k, P.nCal);
+    const key = 'w' + P.alpha + ':' + P.k;
+    if (!cache[key]) {
+      const wins = windowsOf(testFrames().map(f => f.vec), 4, 1).map((w, j) => {
+        const capSecs = pick4(w.secs), cap = windowCaption(capSecs);
+        return { ...w, j, capSecs, frameCaps: capSecs.map(frameCaption), caption: cap.text, sev: cap.sev, raw: textVec(cap.text, cap.concepts) };
+      });
+      const cen = centerRows(wins.map(w => w.raw), P.alpha);
+      wins.forEach((w, i) => {
+        w.txt = cen[i];
+        let bt = -4, ti = -1, bi = -4, ii = -1;
+        mem.wins.forEach((o, n) => { const st = dot(w.txt, o.txt), si = dot(w.vec, o.img); if (st > bt) { bt = st; ti = n; } if (si > bi) { bi = si; ii = n; } });
+        w.tSim = bt; w.tMatch = mem.wins[ti]; w.iSim = bi; w.iMatch = mem.wins[ii];
+        w.tNov = 1 - bt; w.iNov = 1 - bi;
+        w.ret = retrieve(w.raw, mem, P.k, null);
+        Object.assign(w, rate(w.sev, w.ret, w.caption));
+      });
+      cache[key] = wins;
+    }
+    const wins = cache[key].map(w => {
+      const zT = (w.tNov - mem.tz.median) / mem.tz.scale, zI = (w.iNov - mem.iz.median) / mem.iz.scale;
+      const B = zT + P.imgW * zI, zJ = (w.rating - jc.mean) / jc.std, s = B + P.jW * zJ;
+      return { ...w, zT, zI, B, zJ, s };
+    });
+    // frames: mean of covering windows, then a centred moving average of min(36 s, length / 4)
+    const sum = new Float64Array(NATIVE), cnt = new Uint16Array(NATIVE);
+    for (const w of wins) { const a = w.start * FPS, b = Math.min(NATIVE, (w.start + 4) * FPS); for (let f = a; f < b; f++) { sum[f] += w.s; cnt[f]++; } }
+    const pooled = new Float64Array(NATIVE); for (let f = 0; f < NATIVE; f++) pooled[f] = sum[f] / Math.max(1, cnt[f]);
+    const width = Math.max(1, Math.round(P.smoothS * FPS) | 1), half = (width - 1) / 2, frame = new Float64Array(NATIVE);
+    for (let f = 0; f < NATIVE; f++) { let s = 0; for (let q = f - half; q <= f + half; q++) s += pooled[clamp(q, 0, NATIVE - 1)]; frame[f] = width > 1 ? s / width : pooled[f]; }
+    const labels = new Uint8Array(NATIVE); for (let f = 0; f < NATIVE; f++) labels[f] = f >= GT[0] * FPS && f < GT[1] * FPS ? 1 : 0;
+    return { mem, jc, wins, pooled, frame, cnt, labels, width, metrics: metrics(frame, labels, P.th) };
+  }
+  function auc(scores, labels) {
+    const idx = Array.from(scores, (s, i) => i).sort((a, b) => scores[a] - scores[b]);
+    let pos = 0, sumR = 0, i = 0;
+    while (i < idx.length) { let j = i; while (j + 1 < idx.length && scores[idx[j + 1]] === scores[idx[i]]) j++; const r = (i + j) / 2 + 1; for (let q = i; q <= j; q++) if (labels[idx[q]]) { sumR += r; pos++; } i = j + 1; }
+    return (sumR - pos * (pos + 1) / 2) / (pos * (idx.length - pos));
+  }
+  function roc(scores, labels) {
+    const idx = Array.from(scores, (s, i) => i).sort((a, b) => scores[b] - scores[a]);
+    let P = 0; for (const l of labels) P += l; const N = labels.length - P, pts = [[0, 0]]; let tp = 0, fp = 0;
+    for (let i = 0; i < idx.length; i++) { labels[idx[i]] ? tp++ : fp++; if (i + 1 === idx.length || scores[idx[i + 1]] !== scores[idx[i]]) pts.push([fp / N, tp / P]); }
+    return pts;
+  }
+  function metrics(frame, labels, th) {
+    let tp = 0, fp = 0, tn = 0, fn = 0;
+    for (let f = 0; f < frame.length; f++) { const p = frame[f] > th; if (p && labels[f]) tp++; else if (p) fp++; else if (labels[f]) fn++; else tn++; }
+    const precision = tp + fp ? tp / (tp + fp) : 0, recall = tp + fn ? tp / (tp + fn) : 0, f1 = precision + recall ? 2 * precision * recall / (precision + recall) : 0;
+    return { tp, fp, tn, fn, precision, recall, f1, auc: auc(frame, labels), fpr: fp / (fp + tn), tpr: recall, roc: roc(frame, labels) };
+  }
+  // 2-D view of the centred caption memory (power-iteration PCA), display only
+  function project(alpha, test) {
+    const key = 'p' + alpha; if (cache[key]) return cache[key];
+    const mem = memory(alpha), all = [...mem.wins.map(w => w.txt), ...test.map(w => w.txt)], mu = mean(all), X = all.map(v => v.map((x, j) => x - mu[j])), comps = [];
+    for (let c = 0; c < 2; c++) {
+      let v = new Float64Array(D); const r = rng(99 + c); for (let j = 0; j < D; j++) v[j] = gauss(r);
+      for (let it = 0; it < 40; it++) { const nv = new Float64Array(D); for (const x of X) { const p = dot(x, v); for (let j = 0; j < D; j++) nv[j] += p * x[j]; } for (const u of comps) { const p = dot(nv, u); for (let j = 0; j < D; j++) nv[j] -= p * u[j]; } v = unit(nv); }
+      comps.push(v);
+    }
+    const pt = v => [dot(v, comps[0]) - dot(mu, comps[0]), dot(v, comps[1]) - dot(mu, comps[1])];
+    const inc = pt(test[Math.min(13, test.length - 1)].txt), sx = inc[0] < 0 ? -1 : 1, sy = inc[1] < 0 ? -1 : 1, f = v => { const p = pt(v); return [p[0] * sx, p[1] * sy]; };
+    return cache[key] = { bank: mem.wins.map(w => f(w.txt)), wins: test.map(w => f(w.txt)) };
+  }
+  return { D, FPS, DUR, NATIVE, GT, CLIPS, PHASES, score, memory, judgeCalibration, project, testFrames, clipFrames, frameCaption, phaseAt, textVec, sigmoid, unit, dot, rate };
+})();
+if (typeof module !== 'undefined') module.exports = BJ;
+</script>
+
+<script>
+(() => {
+'use strict';
+const V = BJ;
+const RM = window.matchMedia('(prefers-reduced-motion: reduce)');
+const reduce = () => RM.matches;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const easeOut = p => 1 - Math.pow(1 - p, 3);
+const easeIO = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+const lin = p => p;
+const MINUS = '−';
+const n3 = x => (x < 0 ? MINUS : '') + Math.abs(x).toFixed(3);
+const s3 = x => (x < 0 ? MINUS : '+') + Math.abs(x).toFixed(3);
+const n2 = x => (x < 0 ? MINUS : '') + Math.abs(x).toFixed(2);
+const pad2 = n => String(n).padStart(2, '0');
+const tcode = t => `00:${pad2(Math.floor(t))}.${Math.floor((t % 1) * 10)}`;
+const MONO = '"Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+const SANS = '"Geist", -apple-system, system-ui, "Segoe UI", sans-serif';
+const put = (root, k, html) => { for (const el of root.querySelectorAll(`[data-k="${k}"]`)) el.innerHTML = html; };
+const idle = window.requestIdleCallback ? f => window.requestIdleCallback(f, { timeout: 250 }) : f => setTimeout(f, 30);
+
+/* ---------- colour tokens ---------- */
+const C = {};
+const TOK = ['fg', 'fg-2', 'fg-3', 'bg', 'bg-2', 'surface', 'btn', 'c-action', 'c-memory', 'c-judge', 'c-anom', 'c-normal', 'c-thresh', 'div-neg', 'div-pos', 'div-mid', 'line', 'line-2'];
+function rgbOf(c) {
+  c = (c || '').trim();
+  if (c[0] === '#') { let h = c.slice(1); if (h.length === 3) h = h.replace(/./g, m => m + m); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  const m = c.match(/[\d.]+/g); return m ? m.slice(0, 3).map(Number) : [128, 128, 128];
+}
+const rgba = (c, a) => { const [r, g, b] = rgbOf(c); return `rgba(${r},${g},${b},${a})`; };
+const mix = (a, b, t) => { const A = rgbOf(a), B = rgbOf(b); return `rgb(${A.map((x, i) => Math.round(x + (B[i] - x) * t)).join(',')})`; };
+let LUT = [];
+function readTokens() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of TOK) C[k] = cs.getPropertyValue('--' + k).trim();
+  LUT = [];
+  for (let i = 0; i <= 64; i++) { const t = i / 32 - 1; LUT.push(t < 0 ? mix(C['div-mid'], C['div-neg'], -t) : mix(C['div-mid'], C['div-pos'], t)); }
+}
+const divCol = (v, s) => LUT[Math.round((clamp(v / s, -1, 1) + 1) * 32)];
+
+/* ---------- canvas, loop, tween ---------- */
+let D = [];               // disposers for the mounted step
+const HB = [];            // disposers for the hero (never cleared)
+const ALL = new Set();
+function cv(el, draw, bucket = D) {
+  const o = { el, ctx: el.getContext('2d'), w: 0, h: 0, dpr: 1, draw };
+  o.fit = () => {
+    const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false;
+    const d = Math.min(2, window.devicePixelRatio || 1), W = Math.round(r.width * d), H = Math.round(r.height * d);
+    if (W !== el.width || H !== el.height) { el.width = W; el.height = H; }
+    o.w = r.width; o.h = r.height; o.dpr = d; o.ctx.setTransform(d, 0, 0, d, 0, 0); return true;
+  };
+  o.paint = () => { if (!o.w) return; o.ctx.clearRect(0, 0, o.w, o.h); o.draw && o.draw(o); };
+  o.redraw = () => { if (o.fit()) o.paint(); };
+  const ro = new ResizeObserver(() => o.redraw()); ro.observe(el);
+  ALL.add(o); bucket.push(() => { ro.disconnect(); ALL.delete(o); });
+  o.redraw(); return o;
+}
+const loops = new Set(); let rafId = 0;
+function loop(fn, bucket = D) {
+  loops.add(fn); if (!rafId) rafId = requestAnimationFrame(tick);
+  const off = () => loops.delete(fn); bucket.push(off); return off;
+}
+function tick(now) {
+  rafId = 0;
+  for (const fn of Array.from(loops)) { try { fn(now); } catch (e) { console.error(e); loops.delete(fn); } }
+  if (loops.size) rafId = requestAnimationFrame(tick);
+}
+let gen = 0;
+const alive = g => g === gen;
+function tween(ms, fn, ez = easeOut) {
+  const g = gen;
+  return new Promise(res => {
+    if (reduce() || ms <= 0) { fn(1); return res(g === gen); }
+    const t0 = performance.now();
+    const off = loop(now => {
+      if (g !== gen) { off(); return res(false); }
+      const p = Math.min(1, (now - t0) / ms); fn(ez(p));
+      if (p >= 1) { off(); res(true); }
+    });
+  });
+}
+const sleep = ms => new Promise(r => setTimeout(r, reduce() ? 0 : ms));
+function emptyMsg(o, text) {
+  const g = o.ctx; g.fillStyle = C['fg-3']; g.font = `500 13px ${SANS}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, o.w / 2, o.h / 2);
+}
+function rr(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); }
+function dot(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+
+
+/* ================= Scene: the synthetic street clip ================= */
+const Scene = (() => {
+  const W = 640, H = 360, UPY = 228, LOY = 290, FARY = 178, NEARY = 346;
+  function R(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const sm = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const PAL = {
+    day: { sky0: '#c9d7e6', sky1: '#e9eff5', bld: ['#b7c2ce', '#a7b4c2', '#c7cfd8', '#9eacbc', '#d1d7df'], win: '#e1e8ef', lit: '#e1e8ef', awn: ['#c75d4f', '#4f7cac', '#d9a441', '#5a8f6a'], walk: '#d5d1c9', kerb: '#b6b0a5', road: '#4a4f58', edge: 'rgba(240,240,232,.55)', lane: '#f2f0e8', tree: '#7fa47a', tree2: '#6b9367', trunk: '#7a6450', lamp: '#59616d' },
+    dusk: { sky0: '#232b44', sky1: '#b0766a', bld: ['#343c54', '#2c3349', '#3d4661', '#272f46', '#434c67'], win: '#48516d', lit: '#ffcf7a', awn: ['#7a3d38', '#334f6e', '#80662f', '#38573f'], walk: '#7b7881', kerb: '#605d67', road: '#2b2f37', edge: 'rgba(220,220,210,.4)', lane: '#bcbbb4', tree: '#3b5846', tree2: '#324b3c', trunk: '#493c33', lamp: '#3a404d' },
+  };
+  const bgc = new Map();
+  function background(key, seed, dusk, light, px) {
+    const k = key + '|' + px; let c = bgc.get(k); if (c) return c;
+    c = document.createElement('canvas'); c.width = px; c.height = Math.round(px * H / W);
+    const g = c.getContext('2d'); g.scale(px / W, px / W);
+    const p = dusk ? PAL.dusk : PAL.day, r = R(seed);
+    const gr = g.createLinearGradient(0, 0, 0, 156); gr.addColorStop(0, p.sky0); gr.addColorStop(1, p.sky1); g.fillStyle = gr; g.fillRect(0, 0, W, 156);
+    let x = -10;
+    while (x < W) {
+      const bw = 58 + r() * 72, bh = 60 + r() * 86, top = 154 - bh;
+      g.fillStyle = p.bld[(r() * p.bld.length) | 0]; g.fillRect(x, top, bw - 3, bh);
+      for (let wy = top + 10; wy < 136; wy += 15) for (let wx = x + 8; wx < x + bw - 14; wx += 13) { g.fillStyle = dusk && r() < .42 ? p.lit : p.win; g.fillRect(wx, wy, 6, 8); }
+      if (r() < .55) { g.fillStyle = p.awn[(r() * p.awn.length) | 0]; g.fillRect(x + 4, 140, bw - 11, 6); }
+      x += bw;
+    }
+    g.fillStyle = p.walk; g.fillRect(0, 152, W, 30); g.fillStyle = p.kerb; g.fillRect(0, 180, W, 4);
+    for (let i = 0; i < 4; i++) {
+      const tx = 70 + i * 165 + r() * 30; g.fillStyle = p.trunk; g.fillRect(tx - 2, 146, 4, 26);
+      g.fillStyle = p.tree; dot(g, tx, 134, 17); g.fillStyle = p.tree2; dot(g, tx + 9, 141, 11); dot(g, tx - 9, 142, 10);
+    }
+    for (let i = 0; i < 3; i++) {
+      const lx = 150 + i * 205; g.fillStyle = p.lamp; g.fillRect(lx, 104, 3, 72); g.fillRect(lx - 10, 104, 13, 3);
+      if (dusk) { const gg = g.createRadialGradient(lx - 8, 110, 0, lx - 8, 110, 30); gg.addColorStop(0, 'rgba(255,214,140,.55)'); gg.addColorStop(1, 'rgba(255,214,140,0)'); g.fillStyle = gg; g.fillRect(lx - 40, 80, 64, 60); }
+    }
+    if (light) { g.fillStyle = p.lamp; g.fillRect(452, 112, 4, 70); rr(g, 446, 92, 16, 30, 4); g.fill(); g.fillStyle = '#ff453a'; dot(g, 454, 100, 4); g.fillStyle = '#3a3f46'; dot(g, 454, 113, 4); }
+    g.fillStyle = p.road; g.fillRect(0, 184, W, 122);
+    g.fillStyle = p.edge; g.fillRect(0, 189, W, 1.5); g.fillRect(0, 301, W, 1.5);
+    g.fillStyle = p.lane; for (let dx = 6; dx < W; dx += 50) g.fillRect(dx, 238, 28, 3);
+    g.fillStyle = p.kerb; g.fillRect(0, 306, W, 5); g.fillStyle = p.walk; g.fillRect(0, 311, W, 49);
+    g.strokeStyle = 'rgba(0,0,0,.07)'; g.lineWidth = 1;
+    for (let jx = 20; jx < W + 20; jx += 46) { g.beginPath(); g.moveTo(jx, 311); g.lineTo(jx - 12, 360); g.stroke(); }
+    bgc.set(k, c); return c;
+  }
+  function shade(hex, f) { const [r, gg, b] = rgbOf(hex); const m = x => Math.round(f < 0 ? x * (1 + f) : x + (255 - x) * f); return `rgb(${m(r)},${m(gg)},${m(b)})`; }
+  function vehicle(g, a, t) {
+    const van = a.k === 'van', L = van ? 96 : 76;
+    g.save(); g.translate(a.x, a.y); g.scale(a.s || 1, a.s || 1);
+    g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(0, 1, L / 2 + 4, 4, 0, 0, Math.PI * 2); g.fill();
+    g.rotate(a.ang || 0); g.scale(a.dir, 1);
+    const dark = shade(a.col, -.3), glass = a.lights ? '#6d7a92' : '#cfe0ee';
+    if (van) {
+      g.fillStyle = a.col; rr(g, -48, -40, 96, 34, 6); g.fill();
+      g.fillStyle = dark; g.fillRect(-48, -12, 96, 6);
+      g.fillStyle = glass; rr(g, 28, -36, 16, 13, 3); g.fill(); rr(g, 6, -36, 18, 11, 2); g.fill();
+    } else {
+      g.fillStyle = a.col; rr(g, -38, -21, 76, 16, 7); g.fill();
+      g.beginPath(); g.moveTo(-24, -20); g.lineTo(-15, -33); g.quadraticCurveTo(-13, -35, -10, -35); g.lineTo(9, -35); g.quadraticCurveTo(12, -35, 14, -33); g.lineTo(25, -20); g.closePath(); g.fill();
+      g.fillStyle = glass;
+      g.beginPath(); g.moveTo(-19, -21); g.lineTo(-12, -31); g.lineTo(-3, -31); g.lineTo(-3, -21); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(0, -21); g.lineTo(0, -31); g.lineTo(9, -31); g.lineTo(19, -21); g.closePath(); g.fill();
+      g.fillStyle = dark; g.fillRect(-38, -9, 76, 3);
+    }
+    for (const wx of van ? [-30, 30] : [-23, 23]) { g.fillStyle = '#16181c'; dot(g, wx, -5, 7.5); g.fillStyle = '#8e959e'; dot(g, wx, -5, 3); }
+    g.fillStyle = '#fff4c8'; g.fillRect(L / 2 - 4, van ? -30 : -18, 4, 4);
+    g.fillStyle = '#e0473c'; g.fillRect(-L / 2, van ? -30 : -18, 3, 5);
+    if (a.lights) { const gg = g.createLinearGradient(L / 2, 0, L / 2 + 64, 0); gg.addColorStop(0, 'rgba(255,240,190,.5)'); gg.addColorStop(1, 'rgba(255,240,190,0)'); g.fillStyle = gg; g.beginPath(); g.moveTo(L / 2, -18); g.lineTo(L / 2 + 64, -30); g.lineTo(L / 2 + 64, 2); g.closePath(); g.fill(); }
+    if (a.dmg) { g.fillStyle = '#25272c'; g.beginPath(); g.moveTo(L / 2 - 14, -22); g.lineTo(L / 2 - 6, -31); g.lineTo(L / 2 - 9, -24); g.lineTo(L / 2 + 1, -27); g.lineTo(L / 2 - 3, -17); g.lineTo(L / 2 + 2, -10); g.lineTo(L / 2 - 12, -7); g.closePath(); g.fill(); }
+    if (a.hazard && Math.floor(t * 2.4) % 2 === 0) { g.fillStyle = 'rgba(255,170,30,.95)'; dot(g, L / 2 - 2, -14, 3.2); dot(g, -L / 2 + 2, -14, 3.2); }
+    g.restore();
+  }
+  function person(g, p, t) {
+    const sw = p.mv ? Math.sin(t * (p.run ? 15 : 8) + (p.ph || 0)) : 0;
+    g.save(); g.translate(p.x, p.y); g.scale(p.s || 1, p.s || 1);
+    g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(0, 0, 7, 2, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#2a2e35'; g.lineWidth = 3.2; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(0, -16); g.lineTo(sw * 5, -1); g.moveTo(0, -16); g.lineTo(-sw * 5, -1); g.stroke();
+    g.fillStyle = p.col; rr(g, -5.5, -34, 11, 20, 5); g.fill();
+    g.strokeStyle = shade(p.col, -.22); g.lineWidth = 2.6;
+    g.beginPath(); g.moveTo(-3, -30); g.lineTo(-3 - sw * 4, -19); g.moveTo(3, -30); g.lineTo(3 + sw * 4, -19); g.stroke();
+    if (p.box) { g.fillStyle = '#b98a55'; g.fillRect(-7, -33, 14, 11); }
+    g.fillStyle = p.skin; dot(g, 0, -40, 5.6);
+    g.fillStyle = '#2a2420'; g.beginPath(); g.arc(0, -41.5, 5.8, Math.PI, 0); g.fill();
+    g.restore();
+  }
+  function flame(g, x, y, w, h, col) { g.fillStyle = col; g.beginPath(); g.moveTo(x - w, y); g.quadraticCurveTo(x - w, y - h * .5, x, y - h); g.quadraticCurveTo(x + w, y - h * .5, x + w, y); g.closePath(); g.fill(); }
+  function effects(g, t) {
+    const fi = sm(14.4, 15.4, t) * (1 - sm(19.4, 20.6, t));
+    if (fi > .01) {
+      const gg = g.createRadialGradient(326, 208, 0, 326, 208, 60); gg.addColorStop(0, `rgba(255,150,40,${.35 * fi})`); gg.addColorStop(1, 'rgba(255,150,40,0)'); g.fillStyle = gg; g.fillRect(266, 148, 120, 120);
+      for (let i = 0; i < 6; i++) { const fx = 311 + i * 5.5, fl = (12 + 14 * Math.abs(Math.sin(t * 9 + i * 1.7))) * fi; flame(g, fx, 214, 5 + fi * 2, fl, '#ff8a1e'); flame(g, fx, 214, 3, fl * .6, '#ffd84a'); }
+    }
+    if (t > 13.2) {
+      const r = R(9);
+      for (let i = 0; i < 60; i++) {
+        const te = 13.2 + i * .2, rx = r(), ry = r(); if (te > t) break;
+        const age = t - te, life = 3.4; if (age > life) continue;
+        const k = age / life, den = 1 - sm(19.5, 24, te) * .6;
+        g.fillStyle = `rgba(${90 + 60 * k | 0},${94 + 60 * k | 0},${102 + 56 * k | 0},${.55 * (1 - k) * den})`;
+        dot(g, 322 + (rx - .5) * 26 + age * (8 + 10 * rx), 200 - age * (24 + 10 * ry), 7 + age * 10);
+      }
+    }
+    if (t > 13 && t < 14.3) {
+      const r = R(5), age = t - 13; g.fillStyle = '#2b2d33';
+      for (let i = 0; i < 12; i++) { const vx = (r() - .5) * 120, vy = -40 - r() * 70, w = 3 + r() * 3, h = 2 + r() * 2; const x = 332 + vx * age, y = 212 + vy * age + 160 * age * age; if (y < 300) g.fillRect(x, y, w, h); }
+    }
+    if (t > 12.9 && t < 14.4) {
+      const a = 1 - sm(13.0, 14.4, t), rad = 20 + 110 * sm(12.9, 13.5, t);
+      const gg = g.createRadialGradient(332, 205, 0, 332, 205, rad);
+      gg.addColorStop(0, `rgba(255,250,225,${.95 * a})`); gg.addColorStop(.35, `rgba(255,196,90,${.6 * a})`); gg.addColorStop(1, 'rgba(255,150,60,0)');
+      g.fillStyle = gg; g.fillRect(332 - rad, 205 - rad, rad * 2, rad * 2);
+    }
+  }
+  function incident(t) {
+    const A = [];
+    const xc = -60 + 66 * t; if (xc < W + 60) A.push({ id: 3, k: 'car', x: xc, y: LOY, dir: 1, col: '#e6e8eb', s: 1 });
+    const xd = 690 - 70 * t; if (xd > -60) A.push({ id: 4, k: 'car', x: xd, y: UPY, dir: -1, col: '#3d8a68', s: .9 });
+    let a;
+    if (t < 13) { const dr = sm(9.4, 12.8, t); a = { x: 295 - 34 * (13 - t), y: LOY - (LOY - UPY) * dr, s: 1 - .1 * dr, ang: -.13 * Math.sin(Math.PI * dr), dmg: 0 }; }
+    else { const k = sm(13, 13.6, t); a = { x: 295 - 12 * k, y: UPY + 2 * k, s: .9, ang: -.24 * k, dmg: 1 }; }
+    if (a.x > -60) A.push({ id: 1, k: 'car', dir: 1, col: '#d8453b', ...a });
+    let b;
+    if (t < 13) b = { x: 378 + 30 * (13 - t), ang: 0, dmg: 0 };
+    else { const k = sm(13, 13.6, t); b = { x: 378 + 9 * k, ang: .08 * k, dmg: 1 }; }
+    if (b.x < W + 60) A.push({ id: 2, k: 'van', y: UPY, dir: -1, s: .9, col: '#2f6db5', ...b });
+    if (t >= 15) { const p = Math.min(1, (t - 15) / 3.4); A.push({ id: 5, k: 'car', x: -60 + 225 * (1 - Math.pow(1 - p, 3)), y: LOY, dir: 1, col: '#e9b949', s: 1, hazard: t > 18.4 }); }
+    const p1x = t < 13.4 ? 24 + 17 * t : t < 15.5 ? 251.8 : 251.8 + 40 * Math.min(1, (t - 15.5) / 1.5);
+    A.push({ id: 6, k: 'person', x: p1x, y: FARY, s: .85, col: '#3a6ea5', skin: '#e0b48f', mv: t < 13.4 || (t > 15.5 && t < 17), run: t > 15.5, ph: 0 });
+    A.push({ id: 7, k: 'person', x: 612 - 12 * Math.min(t, 13.6), y: FARY + 1, s: .85, col: '#2f855a', skin: '#b07a54', mv: t < 13.6, ph: 1.3 });
+    const p2x = t < 13.4 ? 600 - 15 * t : t < 15 ? 399 : 399 - 46 * Math.min(1, (t - 15) / 1.3);
+    A.push({ id: 8, k: 'person', x: p2x, y: NEARY, s: 1.05, col: '#c0504d', skin: '#8d5a3b', mv: t < 13.4 || (t > 15 && t < 16.3), run: t > 15, ph: 2 });
+    if (t >= 16.4) A.push({ id: 9, k: 'person', x: 680 - 100 * Math.min(t - 16.4, 2.3), y: NEARY + 2, s: 1.05, col: '#6b4ea0', skin: '#f1c9a5', mv: t < 18.7, run: true, ph: .5 });
+    return A;
+  }
+  const vcache = new Map();
+  const COLS = ['#e6e8eb', '#3d8a68', '#2f6db5', '#9aa3ad', '#e9b949', '#4a4f5a', '#8a5a9e', '#c9ced6', '#b5523f'];
+  const PEOP = [['#3a6ea5', '#e0b48f'], ['#2f855a', '#b07a54'], ['#c0504d', '#8d5a3b'], ['#6b4ea0', '#f1c9a5'], ['#d18f2f', '#c99470'], ['#455060', '#e8c09c']];
+  function variant(c) {
+    if (vcache.has(c.id)) return vcache.get(c.id);
+    const r = R(c.seed), kind = c.kind.name, v = { lo: [], up: [], peds: [], parked: [], dusk: !!c.kind.dusk, kind };
+    const nLo = kind === 'Traffic light queue' ? 3 : kind === 'Busy pavement' || kind === 'Parked cars' ? 1 : 2;
+    const nUp = kind === 'Parked cars' ? 1 : 2;
+    for (let i = 0; i < nLo; i++) v.lo.push({ k: r() < .18 ? 'van' : 'car', col: COLS[(r() * COLS.length) | 0], sp: 46 + r() * 30, off: i * 430 + r() * 200 });
+    for (let i = 0; i < nUp; i++) v.up.push({ k: r() < .18 ? 'van' : 'car', col: COLS[(r() * COLS.length) | 0], sp: 44 + r() * 30, off: i * 430 + r() * 200 });
+    const np = kind === 'Busy pavement' ? 5 : 2;
+    for (let i = 0; i < np; i++) { const pp = PEOP[(r() * PEOP.length) | 0]; v.peds.push({ far: r() < .5, sp: (r() < .5 ? -1 : 1) * (11 + r() * 8), off: r() * 760, col: pp[0], skin: pp[1], ph: r() * 6 }); }
+    if (kind === 'Parked cars') v.parked = [70, 250, 470].map(x => ({ x, col: COLS[(r() * COLS.length) | 0] }));
+    vcache.set(c.id, v); return v;
+  }
+  function normal(t, c) {
+    const v = variant(c), A = [], span = W + 240, lights = v.dusk;
+    v.lo.forEach((o, i) => { const x = v.kind === 'Traffic light queue' ? 372 - 92 * i : ((o.off + o.sp * t) % span) - 120; A.push({ id: 10 + i, k: o.k, x, y: LOY, dir: 1, col: o.col, s: 1, lights }); });
+    v.up.forEach((o, i) => A.push({ id: 20 + i, k: o.k, x: W + 120 - ((o.off + o.sp * t) % span), y: UPY, dir: -1, col: o.col, s: .9, lights }));
+    v.parked.forEach((o, i) => A.push({ id: 30 + i, k: 'car', x: o.x, y: 200, dir: -1, col: o.col, s: .84 }));
+    if (v.kind === 'Delivery stop') {
+      A.push({ id: 40, k: 'van', x: 470, y: LOY, dir: 1, col: '#e6e8eb', s: 1 });
+      const ph = (t % 6) / 6; A.push({ id: 41, k: 'person', x: 520 + 30 * Math.sin(ph * Math.PI * 2), y: NEARY, s: 1.02, col: '#d18f2f', skin: '#c99470', mv: true, box: true });
+    }
+    if (v.kind === 'Pedestrian crossing') { const ph = (t % 9) / 9, k = sm(0, .55, ph); A.push({ id: 42, k: 'person', x: 430, y: FARY + (NEARY - FARY) * k, s: .85 + .2 * k, col: '#455060', skin: '#e8c09c', mv: ph < .55 }); }
+    v.peds.forEach((p, i) => { const x = (((p.off + p.sp * t) % 760) + 760) % 760 - 60; A.push({ id: 50 + i, k: 'person', x, y: p.far ? FARY : NEARY, s: p.far ? .85 : 1.05, col: p.col, skin: p.skin, mv: true, ph: p.ph }); });
+    return A;
+  }
+  function draw(g, w, h, t, which, dpr) {
+    const inc = which === 'incident', c = inc ? null : which;
+    const px = Math.min(1280, Math.max(160, Math.ceil(w * (dpr || 1) / 160) * 160));
+    const B = background(inc ? 'inc' : 'c' + c.id, inc ? 11 : c.seed, !inc && !!c.kind.dusk, !inc && c.kind.name === 'Traffic light queue', px);
+    g.drawImage(B, 0, 0, w, h);
+    g.save(); g.scale(w / W, h / H);
+    const A = inc ? incident(t) : normal(t, c);
+    A.sort((a, b) => a.y - b.y);
+    for (const a of A) { if (a.k === 'person') person(g, a, t); else vehicle(g, a, t); }
+    if (inc) effects(g, t);
+    if (!inc && c.kind.dusk) { g.fillStyle = 'rgba(20,24,48,.12)'; g.fillRect(0, 0, W, H); }
+    g.restore();
+    return A;
+  }
+  function boxes(A) {
+    const out = [];
+    for (const a of A) {
+      const s = a.s || 1; let x, y, w, h, cls;
+      if (a.k === 'person') { cls = 'person'; w = 18 * s; h = 48 * s; x = a.x - w / 2; y = a.y - 47 * s; }
+      else if (a.k === 'van') { cls = 'van'; w = 102 * s; h = 44 * s; x = a.x - w / 2; y = a.y - 42 * s; }
+      else { cls = 'car'; w = 82 * s; h = 38 * s; x = a.x - w / 2; y = a.y - 37 * s; }
+      if (a.ang) { const e = Math.abs(a.ang) * 34; y -= e / 2; h += e; }
+      const x0 = Math.max(0, x), y0 = Math.max(0, y), x1 = Math.min(W, x + w), y1 = Math.min(H, y + h);
+      if (x1 - x0 < 6 || y1 - y0 < 6) continue;
+      const conf = clamp((cls === 'person' ? .84 : .92) + ((a.id * 37) % 7) / 100 - (a.dmg ? .07 : 0), .5, .99);
+      out.push({ id: a.id, cls, conf, x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    }
+    return out.sort((a, b) => a.id - b.id);
+  }
+  let off1 = null, off2 = null;
+  const canFilter = (() => { try { return typeof document.createElement('canvas').getContext('2d').filter === 'string'; } catch (e) { return false; } })();
+  function drawMasked(g, w, h, t, which, dpr) {
+    const d = dpr || 1, PW = Math.max(1, Math.round(w * d)), PH = Math.max(1, Math.round(h * d));
+    off1 = off1 || document.createElement('canvas'); if (off1.width !== PW || off1.height !== PH) { off1.width = PW; off1.height = PH; }
+    const o = off1.getContext('2d'); o.setTransform(d, 0, 0, d, 0, 0); o.clearRect(0, 0, w, h);
+    const A = draw(o, w, h, t, which, d), B = boxes(A);
+    g.drawImage(off1, 0, 0, w, h);
+    if (canFilter) { g.save(); g.filter = `blur(${Math.max(1.5, w / 64)}px)`; g.drawImage(off1, 0, 0, w, h); g.restore(); }
+    else {
+      off2 = off2 || document.createElement('canvas'); const sw = Math.max(8, Math.round(w / 14)), sh = Math.max(5, Math.round(h / 14));
+      off2.width = sw; off2.height = sh; const o2 = off2.getContext('2d'); o2.drawImage(off1, 0, 0, sw, sh);
+      g.save(); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(off2, 0, 0, w, h); g.restore();
+    }
+    const sx = w / W, sy = h / H;
+    for (const b of B) g.drawImage(off1, b.x * sx * d, b.y * sy * d, b.w * sx * d, b.h * sy * d, b.x * sx, b.y * sy, b.w * sx, b.h * sy);
+    return { A, B };
+  }
+  const BOXCOL = { person: '#34c759', car: '#64d2ff', van: '#ffd60a' };
+  function drawBoxes(g, w, h, B, prog = 1) {
+    const sx = w / W, sy = h / H, n = B.length * prog, small = w < 420;
+    g.save(); g.font = `600 ${small ? 9 : 10.5}px ${MONO}`; g.textBaseline = 'middle';
+    B.forEach((b, i) => {
+      const a = clamp(n - i, 0, 1); if (a <= 0) return;
+      const x = b.x * sx, y = b.y * sy, bw = b.w * sx, bh = b.h * sy, col = BOXCOL[b.cls];
+      g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = 1.6; rr(g, x, y, bw, bh, 3); g.stroke();
+      const label = small ? `${b.cls} #${b.id}` : `${b.cls} ${b.conf.toFixed(2)} · #${b.id}`, tw = g.measureText(label).width + 10, lh = small ? 13 : 15;
+      const ly = y > lh + 2 ? y - lh - 1 : y + bh + 1;
+      g.fillStyle = col; rr(g, x, ly, tw, lh, 4); g.fill(); g.fillStyle = '#0b0c0e'; g.fillText(label, x + 5, ly + lh / 2 + .5);
+    });
+    g.restore();
+  }
+  const urls = new Map();
+  function thumbURL(sec, masked) {
+    const k = sec + (masked ? 'm' : 'r'); let u = urls.get(k); if (u) return u;
+    const c = document.createElement('canvas'); c.width = 256; c.height = 144; const g = c.getContext('2d');
+    if (masked) drawMasked(g, 256, 144, sec, 'incident', 1); else draw(g, 256, 144, sec, 'incident', 1);
+    try { u = c.toDataURL('image/jpeg', .82); } catch (e) { u = ''; }
+    urls.set(k, u); return u;
+  }
+  return { W, H, draw, drawMasked, drawBoxes, boxes, incident, thumbURL, BOXCOL };
+})();
+
+
+function drawBar(o, vec, prog = 1, scale = .085) { const g = o.ctx, n = vec.length, m = Math.floor(n * prog), w = o.w / n; for (let j = 0; j < m; j++) { g.fillStyle = divCol(vec[j], scale); g.fillRect(j * w, 0, w + .6, o.h); } }
+function rangeHTML(id, label, min, max, step, val, help) {
+  return `<div class="ctl-row"><div class="ctl-top"><label for="${id}">${label}</label><output id="${id}-o" for="${id}"></output></div><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}">${help ? `<p class="ctl-help">${help}</p>` : ''}</div>`;
+}
+function bindRange(root, id, fmt, fn) {
+  const el = $('#' + id, root), out = $('#' + id + '-o', root);
+  const upd = () => { const v = +el.value; el.style.setProperty('--p', ((v - el.min) / (el.max - el.min) * 100) + '%'); out.textContent = fmt(v); };
+  upd(); el.addEventListener('input', () => { upd(); fn(+el.value); });
+  return { set(v) { el.value = v; upd(); } };
+}
+function segHTML(name, opts, cur) { return `<div class="seg" role="group" data-seg="${name}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" aria-pressed="${String(v) === String(cur)}">${l}</button>`).join('')}</div>`; }
+function bindSeg(root, name, fn) {
+  const box = $(`[data-seg="${name}"]`, root);
+  box.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $$('button', box).forEach(x => x.setAttribute('aria-pressed', x === b)); fn(b.dataset.v); });
+}
+const wpickHTML = () => `<div class="card"><div class="card-h"><span>Pick a window</span><b data-k="wlabel"></b></div><div class="wpick" data-wp></div><div class="wpick-axis"><span>0 s</span><span>12 s</span><span>24 s</span></div></div>`;
+function wpick(root, metric, col, onSel) {
+  const box = $('[data-wp]', root);
+  const paint = () => {
+    const res = ensureR();
+    if (box.children.length !== res.wins.length) box.innerHTML = res.wins.map((w, j) => `<button type="button" class="wbar" data-j="${j}" aria-label="Window ${j + 1}, ${winSpan(w)}"><i></i></button>`).join('');
+    $$('.wbar', box).forEach((b, j) => {
+      const on = j === S.sel; b.setAttribute('aria-pressed', on);
+      const v = metric ? clamp(metric(res.wins[j]), 0, 1) : .4;
+      b.firstChild.style.height = (10 + 90 * v) + '%';
+      b.firstChild.style.background = on ? C.fg : metric ? rgba(col, .45) : '';
+    });
+    put(root, 'wlabel', `#${S.sel + 1} · ${winSpan(res.wins[S.sel])}`);
+  };
+  box.addEventListener('click', e => { const b = e.target.closest('.wbar'); if (!b) return; S.sel = +b.dataset.j; paint(); onSel && onSel(); });
+  paint(); return { paint };
+}
+function framesStrip(box, opt, onPick) {
+  box.innerHTML = Array.from({ length: 24 }, (_, s) => `<button type="button" class="slot${opt.visible ? ' in' : ''}" data-s="${s}" aria-pressed="${s === S.sec}" aria-label="Frame at ${s} seconds">${opt.visible ? `<img alt="" src="${Scene.thumbURL(s, !!opt.masked)}">` : ''}<span>${s}s</span></button>`).join('');
+  const slots = $$('.slot', box);
+  box.addEventListener('click', e => { const b = e.target.closest('.slot'); if (!b || !b.classList.contains('in')) return; S.sec = +b.dataset.s; slots.forEach((x, i) => x.setAttribute('aria-pressed', i === S.sec)); onPick && onPick(S.sec); });
+  return {
+    slots,
+    show(s, masked) { const sl = slots[s]; let im = $('img', sl); if (!im) { im = new Image(); im.alt = ''; sl.prepend(im); } im.src = Scene.thumbURL(s, !!masked); requestAnimationFrame(() => sl.classList.add('in')); },
+    masked(m) { slots.forEach((sl, s) => { const im = $('img', sl); if (im) im.src = Scene.thumbURL(s, m); }); },
+  };
+}
+const ICON = {
+  play: '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 4.2v11.6a.8.8 0 0 0 1.2.7l9.3-5.8a.8.8 0 0 0 0-1.4L7.2 3.5A.8.8 0 0 0 6 4.2Z"/></svg>',
+  pause: '<svg viewBox="0 0 20 20" fill="currentColor"><rect x="5" y="4" width="3.4" height="12" rx="1"/><rect x="11.6" y="4" width="3.4" height="12" rx="1"/></svg>',
+};
+const eqr = (l, r) => `<span class="l">${l}</span><span class="o">=</span><span class="r">${r}</span>`;
+const chips = list => `<div class="chips">${list.map(([t, f]) => `<span class="chip${f ? ' frozen' : ''}">${t}</span>`).join('')}</div>`;
+
+const gauge = (key, label, col, big) => `<div class="gauge${big ? ' big' : ''}"><svg viewBox="0 0 100 100" role="img" aria-label="${label}"><circle cx="50" cy="50" r="42" fill="none" style="stroke:var(--line-2)" stroke-width="8"/><circle data-g="${key}" cx="50" cy="50" r="42" fill="none" style="stroke:${col}" stroke-width="8" stroke-linecap="round" transform="rotate(-90 50 50)" stroke-dasharray="0 264"/><text data-gt="${key}" x="50" y="56" text-anchor="middle" font-size="${big ? 18 : 17}">—</text></svg><span class="gl">${label}</span></div>`;
+
+const zgauge = gauge;
+
+/* ================= state ================= */
+const DEF = { alpha: 1, k: 8, nCal: 200, imgW: .25, jW: 1, smoothS: 6, th: 3 };
+const S = { i: 0, sel: 13, sec: 14, done: new Set(), P: { ...DEF }, finished: false };
+let R = null, R0 = null;
+function recompute() { R = V.score(S.P); S.sel = clamp(S.sel, 0, R.wins.length - 1); return R; }
+const ensureR = () => R || recompute();
+const winSpan = w => `${w.start}–${w.start + 4} s`;
+function firstAlert(res = R, th = S.P.th) { for (let f = 0; f < res.frame.length; f++) if (res.frame[f] > th) return f / V.FPS; return null; }
+const zf = x => (x < 0 ? MINUS : '') + Math.abs(x).toFixed(2);
+
+/* ================= shared drawing ================= */
+function zRange(res) { let hi = 4; for (const w of res.wins) hi = Math.max(hi, w.s, w.B, w.zJ * S.P.jW); return { lo: -2, hi: Math.ceil(hi + 1) }; }
+function chartZ(o, rg, opt = {}) {
+  const g = o.ctx, pl = 30, pr = 8, pt = 8, pb = 20, W = o.w - pl - pr, H = o.h - pt - pb;
+  const X = t => pl + t / V.DUR * W, Y = v => pt + (1 - (clamp(v, rg.lo, rg.hi) - rg.lo) / (rg.hi - rg.lo)) * H;
+  if (opt.gt !== false) { g.fillStyle = rgba(C['fg-3'], .13); g.fillRect(X(V.GT[0]), pt, X(V.GT[1]) - X(V.GT[0]), H); }
+  g.font = `500 10px ${MONO}`; g.lineWidth = 1;
+  const step = rg.hi - rg.lo > 12 ? 4 : 2;
+  for (let v = Math.ceil(rg.lo / step) * step; v <= rg.hi; v += step) {
+    g.strokeStyle = v === 0 ? C.line : C['line-2']; g.beginPath(); g.moveTo(pl, Y(v) + .5); g.lineTo(pl + W, Y(v) + .5); g.stroke();
+    g.fillStyle = C['fg-3']; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText(v < 0 ? MINUS + -v : String(v), pl - 6, Y(v));
+  }
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.fillStyle = C['fg-3'];
+  for (const t of [0, 4, 8, 12, 16, 20, 24]) g.fillText(t + (t === 24 ? ' s' : ''), clamp(X(t), pl + 6, pl + W - 8), o.h - 5);
+  return { X, Y, pl, pt, W, H };
+}
+function thLine(o, G, th, handle) {
+  const g = o.ctx, y = G.Y(th);
+  g.save(); g.strokeStyle = C['c-thresh']; g.lineWidth = 1.5; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(G.pl, y); g.lineTo(G.pl + G.W, y); g.stroke(); g.restore();
+  if (handle) { g.fillStyle = C['c-thresh']; rr(g, G.pl + G.W - 40, y - 8, 40, 16, 8); g.fill(); g.fillStyle = '#fff'; g.font = `600 9.5px ${MONO}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('z ' + th.toFixed(1), G.pl + G.W - 20, y + .5); }
+}
+function winSeries(o, G, res, keys, prog = 1) {
+  const g = o.ctx; g.save(); g.beginPath(); g.rect(0, 0, G.pl + G.W * prog, o.h); g.clip();
+  for (const [k, col, lw, f] of keys) { g.strokeStyle = col; g.lineWidth = lw; g.lineJoin = 'round'; g.beginPath(); res.wins.forEach((w, j) => { const x = G.X(w.start + 2), y = G.Y(f ? f(w) : w[k]); if (j) g.lineTo(x, y); else g.moveTo(x, y); }); g.stroke(); }
+  g.restore();
+}
+function frameLine(o, G, arr, opt = {}) {
+  const g = o.ctx, upto = opt.upto == null ? arr.length : opt.upto; if (upto < 2) return;
+  const xs = f => G.X((f + .5) / V.FPS);
+  if (opt.alerts != null) {
+    const th = opt.alerts; g.fillStyle = rgba(C['c-anom'], .24); g.beginPath(); let open = false;
+    for (let f = 0; f < upto; f++) { const on = arr[f] > th; if (on && !open) { g.moveTo(xs(f), G.Y(th)); open = true; } if (on) g.lineTo(xs(f), G.Y(arr[f])); if (open && (!on || f === upto - 1)) { g.lineTo(xs(f), G.Y(th)); g.closePath(); open = false; } }
+    g.fill();
+  }
+  g.strokeStyle = opt.col || C.fg; g.lineWidth = opt.lw || 2; g.lineJoin = 'round'; g.beginPath();
+  for (let f = 0; f < upto; f++) { const x = xs(f), y = G.Y(arr[f]); if (f) g.lineTo(x, y); else g.moveTo(x, y); }
+  g.stroke();
+}
+function hist(o, values, opt = {}) {
+  const g = o.ctx, col = opt.col || C['c-memory'], lo = opt.lo != null ? opt.lo : values[0], hi0 = opt.hi != null ? opt.hi : values[values.length - 1];
+  const hi = Math.max(hi0, opt.marker != null ? opt.marker : -Infinity) + (hi0 - lo) * .06, nb = 22, bins = new Array(nb).fill(0);
+  for (const d of values) bins[clamp(Math.floor((d - lo) / (hi - lo) * nb), 0, nb - 1)]++;
+  const mx = Math.max(...bins), pl = 8, pr = 8, pt = 24, pb = 18, W = o.w - pl - pr, H = o.h - pt - pb, X = d => pl + (d - lo) / (hi - lo) * W, prog = opt.prog == null ? 1 : opt.prog;
+  if (opt.band) { g.fillStyle = rgba(col, .12); g.fillRect(X(opt.band[0]), pt, X(opt.band[1]) - X(opt.band[0]), H); }
+  g.fillStyle = rgba(col, .5);
+  bins.forEach((b, i) => { const bh = H * b / mx * prog; if (bh > 0) { rr(g, pl + i * W / nb + 1, pt + H - bh, W / nb - 2, bh, 2); g.fill(); } });
+  g.strokeStyle = C.line; g.lineWidth = 1; g.beginPath(); g.moveTo(pl, pt + H + .5); g.lineTo(pl + W, pt + H + .5); g.stroke();
+  g.font = `500 10px ${MONO}`; g.fillStyle = C['fg-3']; g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillText(lo.toFixed(2), pl, o.h - 4); g.textAlign = 'right'; g.fillText(hi.toFixed(2), pl + W, o.h - 4);
+  if (opt.center != null && prog >= 1) { const x = X(opt.center); g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, pt - 4); g.lineTo(x, pt + H); g.stroke(); g.fillStyle = C['fg-2']; g.textAlign = 'left'; g.font = `500 10.5px ${MONO}`; g.fillText(opt.label || '', clamp(x + 6, 4, o.w - 220), pt - 10); }
+  if (opt.marker != null) {
+    const d = opt.center + (opt.marker - opt.center) * (opt.mProg == null ? 1 : opt.mProg), x = X(d);
+    g.strokeStyle = C.fg; g.lineWidth = 2; g.beginPath(); g.moveTo(x, pt - 2); g.lineTo(x, pt + H); g.stroke(); g.fillStyle = C.fg; dot(g, x, pt - 2, 3.5);
+    g.font = `600 10.5px ${MONO}`; const right = x > o.w - 120; g.textAlign = right ? 'right' : 'left'; g.fillText(opt.mLabel ? opt.mLabel(d) : d.toFixed(3), x + (right ? -8 : 8), pt + 10);
+  }
+}
+function scatter(o, opt) {
+  const g = o.ctx;
+  g.strokeStyle = C['line-2']; g.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(Math.round(o.w * i / 4) + .5, 0); g.lineTo(Math.round(o.w * i / 4) + .5, o.h); g.stroke(); g.beginPath(); g.moveTo(0, Math.round(o.h * i / 4) + .5); g.lineTo(o.w, Math.round(o.h * i / 4) + .5); g.stroke(); }
+  const prog = opt.prog == null ? 1 : opt.prog; if (prog <= 0 && !opt.wins) { emptyMsg(o, opt.empty || ''); return; }
+  const res = ensureR(), pr = V.project(S.P.alpha, res.wins);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [x, y] of pr.bank.concat(opt.wins ? pr.wins : [])) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const pad = 16, X = x => pad + (x - x0) * (o.w - 2 * pad) / (x1 - x0 || 1), Y = y => o.h - pad - (y - y0) * (o.h - 2 * pad) / (y1 - y0 || 1);
+  const n = Math.floor(pr.bank.length * prog); g.fillStyle = rgba(C['fg-3'], .55);
+  for (let i = 0; i < n; i++) dot(g, X(pr.bank[i][0]), Y(pr.bank[i][1]), 2.1);
+  if (!opt.wins) return;
+  g.strokeStyle = rgba(C['c-action'], .45); g.lineWidth = 1.2; g.beginPath(); pr.wins.forEach(([x, y], j) => { if (j) g.lineTo(X(x), Y(y)); else g.moveTo(X(x), Y(y)); }); g.stroke();
+  g.fillStyle = rgba(C['c-action'], .75); pr.wins.forEach(([x, y]) => dot(g, X(x), Y(y), 2.4));
+  if (opt.sel == null) return;
+  const w = res.wins[opt.sel], [qx, qy] = pr.wins[opt.sel], mi = res.mem.wins.indexOf(w.tMatch), [bx, by] = pr.bank[mi];
+  if (opt.link) { g.strokeStyle = rgba(C['c-action'], .8); g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(qx), Y(qy)); g.lineTo(X(qx) + (X(bx) - X(qx)) * opt.link, Y(qy) + (Y(by) - Y(qy)) * opt.link); g.stroke(); if (opt.link >= 1) { g.fillStyle = C['c-action']; dot(g, X(bx), Y(by), 4); } }
+  if (opt.pulse) { g.strokeStyle = rgba(C['c-action'], 1 - opt.pulse); g.lineWidth = 2; g.beginPath(); g.arc(X(qx), Y(qy), 7 + 26 * opt.pulse, 0, Math.PI * 2); g.stroke(); }
+  g.fillStyle = C.surface; dot(g, X(qx), Y(qy), 7); g.strokeStyle = C.fg; g.lineWidth = 2.5; g.beginPath(); g.arc(X(qx), Y(qy), 6, 0, Math.PI * 2); g.stroke();
+}
+const winPick = (metric, col, cb) => root => wpick(root, metric, col, cb);
+
+/* ================= steps ================= */
+const STEPS = [];
+
+/* ---- 0 · normal memory ---- */
+STEPS.push({
+  key: 'mem', badge: '0', phase: 'Memory', short: 'Normal memory', title: 'Remember what normal looks like', btn: 'Build the memory',
+  viz: () => `<div class="vgrid">
+    <div class="tiles">${V.CLIPS.map(c => `<figure class="tile" data-id="${c.id}"><canvas></canvas><figcaption>${pad2(c.id + 1)} · ${c.kind.name}</figcaption><span class="tag">In memory</span></figure>`).join('')}</div>
+    <div class="duo">
+      <div class="card"><div class="card-h"><span>Caption memory · 2-D view</span><b data-k="bankN">empty</b></div><canvas class="cv-sc h-200"></canvas></div>
+      <div class="card"><div class="card-h"><span>How novel normal is</span>${segHTML('hk', [['t', 'Captions'], ['i', 'Images']], 't')}</div><canvas class="cv-hi h-200"></canvas></div>
+    </div></div>`,
+  panel: () => `<p class="p-lead">Before any test video is scored, the system watches footage in which nothing goes wrong and keeps <b>every window it saw</b>. There are no prompts and nothing is trained.</p>
+    <div class="pb"><h4>What is kept for each window</h4>
+      <p><b>An image vector</b> from CLIP, the mean of the window's frames.</p>
+      <p><b>A caption</b> written by Gemma, and its sentence vector. Each clip's caption vectors are centred on that clip's own mean, which removes what is constant about the camera's scene.</p></div>
+    <div class="pb"><h4>Calibrate against itself</h4>
+      <p>Every memory window is scored like a test window, with <b>its own clip left out</b>. The median and spread of those scores say how novel a normal window usually looks. Later scores are measured in that unit.</p>
+      <div class="eq" style="margin-top:12px">
+      ${eqr('memory', `20 clips × 21 windows = <b data-k="nb">420</b> windows`)}
+      ${eqr('captions', `median <b class="k-act" data-k="tm">—</b> · scale <b class="k-act" data-k="ts">—</b>`)}
+      ${eqr('images', `median <b class="k-mem" data-k="im">—</b> · scale <b class="k-mem" data-k="is">—</b>`)}
+      ${eqr('scale', 'IQR / 1.349')}
+    </div></div>
+    ${chips([['Prepared once, beforehand'], ['Same frozen models as scoring']])}`,
+  make(v, p, done) {
+    const st = { bank: done ? 1 : 0, hist: done ? 1 : 0 }; let hk = 't';
+    const tiles = $$('.tile', v).map(el => ({ el, c: V.CLIPS[+el.dataset.id] }));
+    tiles.forEach(t => { t.o = cv($('canvas', t.el), null); if (done) t.el.classList.add('ref'); });
+    let last = 0;
+    loop(now => { if (!stageVis || now - last < 70) return; last = now; for (const t of tiles) { const o = t.o; if (!o.w) continue; o.ctx.clearRect(0, 0, o.w, o.h); Scene.draw(o.ctx, o.w, o.h, (now / 1000 + t.c.id * 1.7) % 24, t.c, o.dpr); } });
+    const sc = cv($('.cv-sc', v), o => scatter(o, { prog: st.bank, empty: 'Empty until the memory is built' }));
+    const hi = cv($('.cv-hi', v), o => {
+      if (!st.hist) return emptyMsg(o, 'Filled during calibration');
+      const m = ensureR().mem, zp = hk === 't' ? m.tz : m.iz;
+      hist(o, zp.values, { prog: st.hist, col: hk === 't' ? C['c-action'] : C['c-memory'], center: zp.median, band: [zp.q1, zp.q3], label: `median ${zp.median.toFixed(3)} · IQR ${(zp.q3 - zp.q1).toFixed(3)}` });
+    });
+    bindSeg(v, 'hk', x => { hk = x; hi.paint(); });
+    const fill = () => { const m = ensureR().mem; put(v, 'bankN', `${m.wins.length} windows · ${m.captions.length} captions`); put(p, 'tm', m.tz.median.toFixed(3)); put(p, 'ts', m.tz.scale.toFixed(3)); put(p, 'im', m.iz.median.toFixed(3)); put(p, 'is', m.iz.scale.toFixed(3)); };
+    if (done) fill();
+    return {
+      async run(g) {
+        ensureR();
+        for (const t of tiles) { t.el.classList.add('ref'); await sleep(25); if (!alive(g)) return; }
+        await tween(1300, e => { st.bank = e; sc.paint(); put(v, 'bankN', `${Math.round(420 * e)} windows`); }, easeIO); if (!alive(g)) return;
+        await tween(900, e => { st.hist = e; hi.paint(); }); fill(); hi.paint();
+      },
+    };
+  },
+});
+
+/* ---- 1 · sampling ---- */
+STEPS.push({
+  key: 'samp', badge: '1', phase: 'Perceive', short: 'Frame sampling', title: 'Keep one frame per second', btn: 'Sample at 1 fps',
+  viz: () => `<div class="vgrid">
+    <div class="player"><canvas class="cv-pl"></canvas><div class="hud"><span class="rec">CAM 04</span><span class="mono" data-k="tc">00:00.0</span></div></div>
+    <div class="card"><div class="card-h"><span>720 native frames</span><b data-k="kept">0 kept</b></div><canvas class="cv-ru" style="height:34px"></canvas></div>
+    <div class="strip" data-strip></div></div>`,
+  panel: () => `<p class="p-lead">A video is a stream of still images. Neighbouring frames are almost identical, so the pipeline keeps <b>one frame per second</b>.</p>
+    <div class="pb"><h4>The numbers</h4><div class="eq">
+      ${eqr('native', '30 fps × 24 s = <b>720</b> frames')}
+      ${eqr('kept', 'frame 30·<i>t</i> for <i>t</i> = 0, 1, …, 23')}
+      ${eqr('', '<b>24</b> frames')}
+    </div></div>
+    <div class="pb"><p>Every later model runs on 30 times fewer images. Step 10 maps the scores back onto all 720 frames. Select a sampled frame to carry it into the next steps.</p></div>
+    ${chips([['OpenCV'], ['No model']])}`,
+  make(v, p, done) {
+    let fp = S.sec * 30, kept = done ? 24 : 0;
+    const pl = cv($('.cv-pl', v), o => Scene.draw(o.ctx, o.w, o.h, Math.floor(fp) / 30, 'incident', o.dpr));
+    const ru = cv($('.cv-ru', v), o => { const g = o.ctx; for (let i = 0; i < 720; i++) { const x = (i + .5) / 720 * o.w, s = i % 30 === 0 && i / 30 < kept; g.fillStyle = s ? C.btn : rgba(C['fg-3'], .4); if (s) g.fillRect(x - 1, 2, 2, 28); else g.fillRect(x - .25, 12, .5, 12); } g.fillStyle = C.fg; g.fillRect((Math.floor(fp) + .5) / 720 * o.w - 1, 0, 2, o.h); });
+    const strip = framesStrip($('[data-strip]', v), { visible: done }, s => { fp = s * 30; pl.paint(); ru.paint(); put(v, 'tc', tcode(s)); });
+    put(v, 'tc', tcode(fp / 30)); put(v, 'kept', `${kept} kept`);
+    return {
+      async run(g) {
+        for (let s = 0; s < 24; s++) { fp = s * 30; kept = s + 1; pl.paint(); ru.paint(); strip.show(s, false); put(v, 'kept', `${kept} kept`); put(v, 'tc', tcode(s)); await sleep(70); if (!alive(g)) return; }
+        fp = S.sec * 30; pl.paint(); ru.paint(); put(v, 'tc', tcode(S.sec));
+      },
+    };
+  },
+});
+
+/* ---- 2 · CLIP image encoder ---- */
+STEPS.push({
+  key: 'clip', badge: '2', phase: 'Perceive', short: 'Image encoder', title: 'Turn each frame into a vector', btn: 'Encode the frame',
+  viz: () => `<div class="vgrid">
+    <div class="enc-row">
+      <figure class="enc-in"><div class="sq"><canvas class="cv-f"></canvas></div><figcaption data-k="fl">frame at 14 s</figcaption></figure>
+      <div class="enc-model"><b>CLIP ViT-L/14</b><span>frozen · whole frame</span><span>centre crop, full and half size</span></div>
+      <figure class="enc-in"><div class="sq"><canvas class="cv-h"></canvas></div><figcaption>half size</figcaption></figure>
+    </div>
+    <div class="card"><div class="card-h"><span>768 numbers per frame</span><b data-k="nrm"></b></div>
+      <div class="vgrid" style="gap:10px">
+        <div class="bc"><span class="bl">full</span><canvas class="cv-b1"></canvas><span class="bn">768-D</span></div>
+        <div class="bc"><span class="bl">half</span><canvas class="cv-b2"></canvas><span class="bn">768-D</span></div>
+        <div class="bc final"><span class="bl">frame</span><canvas class="cv-b3"></canvas><span class="bn">unit length</span></div>
+      </div><p class="peek" data-k="peek"></p></div>
+    <div class="strip" data-strip></div></div>`,
+  panel: () => `<p class="p-lead">CLIP turns an image into <b>768 numbers</b>. Images with similar content get vectors that point in similar directions, so they can be compared with a dot product.</p>
+    <div class="pb"><h4>The maths</h4><div class="eq">
+      ${eqr('<i>v</i>', 'normalise( ½ · CLIP(frame) + ½ · CLIP(frame at half size) )')}
+      ${eqr('‖<i>v</i>‖', '<b>1</b>')}
+    </div></div>
+    <div class="pb"><p>The <b>whole frame</b> is encoded, background included. The scene's background is exactly what the normal memory has seen many times, so it should not be hidden.</p><p>Pick another frame below to see its vector change.</p></div>
+    ${chips([['CLIP ViT-L/14', 1], ['768-D']])}`,
+  make(v, p, done) {
+    let prog = done ? 1 : 0;
+    const F = () => V.testFrames()[S.sec];
+    // CLIP sees a square centre crop of the frame; the half-size copy has half the pixels
+    const crop = (o, k) => { const h = Math.max(2, Math.round(o.h * o.dpr * k)), w = Math.round(h * 16 / 9), c = document.createElement('canvas'); c.width = w; c.height = h; Scene.draw(c.getContext('2d'), w, h, S.sec, 'incident', 1); o.ctx.imageSmoothingEnabled = k === 1; o.ctx.drawImage(c, (w - h) / 2, 0, h, h, 0, 0, o.w, o.h); };
+    const f1 = cv($('.cv-f', v), o => crop(o, 1));
+    const f2 = cv($('.cv-h', v), o => crop(o, .5));
+    const b1 = cv($('.cv-b1', v), o => drawBar(o, F().full, prog, .07)), b2 = cv($('.cv-b2', v), o => drawBar(o, F().half, prog, .07)), b3 = cv($('.cv-b3', v), o => drawBar(o, F().vec, prog, .07));
+    const info = () => { put(v, 'fl', `frame at ${S.sec} s`); put(v, 'nrm', prog >= 1 ? '‖v‖ = 1.000' : ''); put(v, 'peek', prog >= 1 ? '[' + Array.from(F().vec.slice(0, 6), x => n3(x)).join(', ') + ', …]' : ''); };
+    framesStrip($('[data-strip]', v), { visible: true }, () => { f1.paint(); f2.paint(); b1.paint(); b2.paint(); b3.paint(); info(); });
+    info();
+    return { async run(g) { await tween(1400, e => { prog = e; b1.paint(); b2.paint(); b3.paint(); }, lin); if (!alive(g)) return; prog = 1; info(); } };
+  },
+});
+
+/* ---- 3 · sliding windows ---- */
+STEPS.push({
+  key: 'win', badge: '3', phase: 'Perceive', short: 'Windows', title: 'Group seconds into windows', btn: 'Slide the window',
+  viz: () => `<div class="vgrid">${wpickHTML()}
+    <div class="card"><div class="card-h"><span>Windows over the clip</span><b>4 s long · 1 s apart</b></div><canvas class="cv-g h-220"></canvas></div>
+    <div class="card"><div class="card-h"><span>Window vector = mean of its 4 frame vectors</span><b data-k="wl"></b></div><div class="bc final"><span class="bl">window</span><canvas class="cv-b"></canvas><span class="bn">768-D</span></div></div></div>`,
+  panel: () => `<p class="p-lead">One frame says little about what is happening. A <b>4-second window</b> holds an action: a car drifting, a collision, people running.</p>
+    <div class="pb"><h4>The numbers</h4><div class="eq">
+      ${eqr('windows', '(24 − 4) / 1 + 1 = <b>21</b>')}
+      ${eqr('<i>v</i><sub>win</sub>', 'normalise( mean of the 4 frame vectors )')}
+    </div></div>
+    <div class="pb"><p>Windows overlap by 3 seconds, so every moment is seen in up to four windows. Every later step works on these 21 windows.</p></div>
+    ${chips([['4 s window'], ['1 s stride']])}`,
+  make(v, p, done) {
+    let prog = done ? 1 : 0;
+    const ga = cv($('.cv-g', v), o => {
+      const res = ensureR(), g = o.ctx, pl = 30, pr = 8, pt = 6, pb = 18, Wd = o.w - pl - pr, H = o.h - pt - pb, n = res.wins.length, rh = H / n, X = t => pl + t / V.DUR * Wd, show = Math.ceil(n * prog);
+      for (let j = 0; j < show; j++) { const w = res.wins[j], on = j === S.sel; g.fillStyle = on ? C.fg : rgba(C['fg-3'], .45); rr(g, X(w.start) + 1, pt + j * rh + 1, X(w.start + 4) - X(w.start) - 2, Math.max(2, rh - 2), Math.min(3, rh / 2)); g.fill(); }
+      g.font = `500 10px ${MONO}`; g.fillStyle = C['fg-3']; g.textAlign = 'center'; for (const t of [0, 4, 8, 12, 16, 20, 24]) g.fillText(t + (t === 24 ? ' s' : ''), clamp(X(t), pl + 6, pl + Wd - 8), o.h - 4);
+    });
+    const bar = cv($('.cv-b', v), o => drawBar(o, ensureR().wins[S.sel].vec, prog, .07));
+    const info = () => put(v, 'wl', `#${S.sel + 1} · ${winSpan(ensureR().wins[S.sel])}`);
+    wpick(v, null, null, () => { ga.paint(); bar.paint(); info(); }); info();
+    return { async run(g) { await tween(1500, e => { prog = e; ga.paint(); bar.paint(); }, lin); } };
+  },
+});
+
+/* ---- 4 · captions ---- */
+STEPS.push({
+  key: 'cap', badge: '4', phase: 'Perceive', short: 'Captions', title: 'Describe each window in words', btn: 'Ask Gemma',
+  viz: () => `<div class="vgrid">${wpickHTML()}
+    <div class="capframes" data-cf></div>
+    <div class="summary"><span class="k">Window caption</span><p data-k="sum"></p></div></div>`,
+  panel: () => `<p class="p-lead">Gemma describes up to <b>4 frames</b> of the window one by one, then joins the descriptions, in time order, into <b>one sentence</b>.</p>
+    <div class="pb"><h4>Why words</h4><p>A sentence names the action ("the two vehicles collide") rather than how the pixels look. The memory can then be searched by meaning, and the judge in step 8 can read it.</p></div>
+    <div class="pb"><p>The captions in this walkthrough are written by hand to show the kind of sentence Gemma produces.</p></div>
+    ${chips([['Gemma 4 31B', 1], ['Temperature 0']])}`,
+  make(v, p, done) {
+    let typed = done;
+    const W = () => ensureR().wins[S.sel];
+    function render() {
+      const w = W();
+      $('[data-cf]', v).innerHTML = w.capSecs.map((s, i) => `<figure class="capf"><div class="player"><canvas data-s="${s}"></canvas></div><figcaption><span class="ts">${s} s</span>${typed ? w.frameCaps[i] : ''}</figcaption></figure>`).join('');
+      $$('[data-cf] canvas', v).forEach(el => cv(el, o => Scene.draw(o.ctx, o.w, o.h, +el.dataset.s, 'incident', o.dpr)));
+      put(v, 'sum', typed ? w.caption : '');
+    }
+    wpick(v, null, null, () => { typed = S.done.has('cap'); render(); }); render();
+    return {
+      async run(g) {
+        typed = false; render(); const w = W(), caps = $$('[data-cf] figcaption', v);
+        for (let i = 0; i < caps.length; i++) { caps[i].innerHTML = `<span class="ts">${w.capSecs[i]} s</span>${w.frameCaps[i]}`; await sleep(260); if (!alive(g)) return; }
+        const el = $('[data-k="sum"]', v); el.classList.add('caret');
+        for (let n = 0; n <= w.caption.length; n += 2) { el.textContent = w.caption.slice(0, n); await sleep(16); if (!alive(g)) return; }
+        el.textContent = w.caption; el.classList.remove('caret'); typed = true;
+      },
+    };
+  },
+});
+
+/* ---- 5 · sentence vectors + centring ---- */
+STEPS.push({
+  key: 'txt', badge: '5', phase: 'Perceive', short: 'Caption vectors', title: 'Remove what the scene always is', btn: 'Embed and centre',
+  viz: () => `<div class="vgrid">${wpickHTML()}
+    <div class="card"><div class="card-h"><span>Sentence vectors</span><b>MPNet · 768-D</b></div>
+      <div class="vgrid" style="gap:10px">
+        <div class="bc"><span class="bl">caption</span><canvas class="cv-b1"></canvas><span class="bn">this window</span></div>
+        <div class="bc"><span class="bl">video mean</span><canvas class="cv-b2"></canvas><span class="bn">all 21 windows</span></div>
+        <div class="bc final"><span class="bl">centred</span><canvas class="cv-b3"></canvas><span class="bn">unit length</span></div>
+      </div></div>
+    <div class="card"><div class="card-h"><span>Nearest memory caption</span>${segHTML('al', [['1', 'Centred'], ['0', 'Not centred']], String(S.P.alpha))}</div><p class="closest" data-k="near"></p></div></div>`,
+  panel: () => `<p class="p-lead">Each caption becomes a sentence vector. Then the video's <b>average caption</b> is subtracted from every caption in it.</p>
+    <div class="pb"><h4>The maths</h4><div class="eq">
+      ${eqr('<i>t</i>', 'MPNet(caption)')}
+      ${eqr('<i>t̃</i>', 'normalise( <i>t</i> − α · mean of the video\'s <i>t</i> )')}
+      ${eqr('α', '<b data-k="a">1</b>')}
+    </div></div>
+    <div class="pb"><h4>Why centre</h4><p>Every caption from one camera repeats the same setting: "past a row of shops", "near the bus stop". Subtracting the average removes that shared part, so what is left describes <b>what is happening</b>, and a new scene is not mistaken for a new event.</p><p>The memory captions were centred the same way, each clip on its own mean.</p></div>
+    ${chips([['all-mpnet-base-v2', 1], ['α = 1']])}`,
+  make(v, p, done) {
+    let prog = done ? 1 : 0;
+    const W = () => ensureR().wins[S.sel];
+    const mean = () => { const ws = ensureR().wins, m = new Float64Array(V.D); for (const w of ws) for (let j = 0; j < V.D; j++) m[j] += w.raw[j] / ws.length; return m; };
+    const b1 = cv($('.cv-b1', v), o => drawBar(o, W().raw, prog, .08)), b2 = cv($('.cv-b2', v), o => drawBar(o, mean(), prog, .08)), b3 = cv($('.cv-b3', v), o => drawBar(o, W().txt, prog, .08));
+    const near = () => { const w = W(); put(v, 'near', prog >= 1 ? `“${w.tMatch.caption}” <span class="mono">· cos ${w.tSim.toFixed(3)}</span>` : 'Shown after embedding'); put(p, 'a', S.P.alpha); };
+    const all = () => { b1.paint(); b2.paint(); b3.paint(); near(); };
+    wpick(v, null, null, all);
+    bindSeg(v, 'al', x => { S.P.alpha = +x; recompute(); all(); });
+    near();
+    return { async run(g) { await tween(1500, e => { prog = e; b1.paint(); b2.paint(); b3.paint(); }, lin); if (!alive(g)) return; prog = 1; near(); } };
+  },
+});
+
+/* ---- 6 · caption novelty ---- */
+STEPS.push({
+  key: 'tnov', badge: '6', phase: 'Score', short: 'Caption novelty', title: 'Has anything like this been said before?', btn: 'Search the memory',
+  viz: () => `<div class="vgrid">${wpickHTML()}
+    <div class="duo wide">
+      <div class="card"><div class="card-h"><span>Centred caption memory · 2-D view</span><b>420 windows</b></div><canvas class="cv-sc h-260"></canvas>
+        <div class="legend"><span style="color:var(--fg-3)"><i></i>normal memory</span><span style="color:var(--c-action)"><i></i>this clip, window by window</span></div></div>
+      <div class="card"><div class="card-h"><span>Closest normal caption</span><b data-k="cs"></b></div><p class="closest" data-k="mine" style="margin-top:0"></p><p class="closest" data-k="theirs"></p></div>
+    </div>
+    <div class="card"><div class="card-h"><span>Where this falls among normal windows</span><b>caption novelty</b></div><canvas class="cv-hi h-120"></canvas></div></div>`,
+  panel: () => `<p class="p-lead">The centred caption is compared with <b>every centred caption in memory</b>. Only the single closest one counts.</p>
+    <div class="pb"><h4>The maths</h4><div class="eq">
+      ${eqr('novelty', '1 − max cos(<i>t̃</i>, memory) = <b data-k="nov">—</b>')}
+      ${eqr('<i>z</i><sub>cap</sub>', '(<span data-k="nov2">x</span> − <span data-k="med">median</span>) / <span data-k="sc">scale</span> = <b class="k-act" data-k="z">—</b>')}
+    </div></div>
+    <div class="pb"><p>A <i>z</i> of 0 means "as novel as a typical normal window". A <i>z</i> of 3 is three spreads beyond it. Median and scale come from step 0.</p><p>The 2-D view is for display only; the link joins the true nearest neighbour in 768 dimensions.</p></div>
+    ${chips([['1 nearest neighbour'], ['Robust z']])}`,
+  make(v, p, done) {
+    let link = done ? 1 : 0, mk = done ? 1 : 0, pulse = 0;
+    const W = () => ensureR().wins[S.sel], mem = () => ensureR().mem;
+    const sc = cv($('.cv-sc', v), o => scatter(o, { wins: true, sel: S.sel, link, pulse }));
+    const hi = cv($('.cv-hi', v), o => { const z = mem().tz; hist(o, z.values, { col: C['c-action'], center: z.median, band: [z.q1, z.q3], label: 'normal memory', marker: mk ? W().tNov : null, mProg: mk }); });
+    function text() {
+      const w = W(), ok = link >= 1, z = mem().tz;
+      put(v, 'mine', `<b>This window:</b> “${w.caption}”`); put(v, 'theirs', ok ? `<b>Closest in memory:</b> “${w.tMatch.caption}” <span class="mono">(clip ${pad2(w.tMatch.clip + 1)}, ${w.tMatch.start}–${w.tMatch.start + 4} s)</span>` : '');
+      put(v, 'cs', ok ? `cos ${w.tSim.toFixed(3)}` : '');
+      const f = (k, x) => put(p, k, mk >= 1 ? x : '—');
+      f('nov', w.tNov.toFixed(3)); f('nov2', w.tNov.toFixed(3)); f('med', z.median.toFixed(3)); f('sc', z.scale.toFixed(3)); f('z', zf(w.zT));
+    }
+    const all = () => { sc.paint(); hi.paint(); text(); };
+    wpick(v, w => w.zT / 4, C['c-action'], all); text();
+    return {
+      async run(g) {
+        await tween(600, e => { pulse = e; sc.paint(); }); pulse = 0; if (!alive(g)) return;
+        await tween(700, e => { link = e; sc.paint(); }, easeIO); if (!alive(g)) return; link = 1; text();
+        await tween(800, e => { mk = e; hi.paint(); }, easeIO); mk = 1; text();
+      },
+    };
+  },
+});
+
+/* ---- 7 · image novelty and B ---- */
+STEPS.push({
+  key: 'inov', badge: '7', phase: 'Score', short: 'Image novelty · B', title: 'Has anything like this been seen before?', btn: 'Compare the pictures',
+  viz: () => `<div class="vgrid">${wpickHTML()}
+    <div class="duo">
+      <div class="card"><div class="card-h"><span>This window</span><b data-k="tw"></b></div><div class="player"><canvas class="cv-a"></canvas></div></div>
+      <div class="card"><div class="card-h"><span>Closest normal window</span><b data-k="cw"></b></div><div class="player"><canvas class="cv-b"></canvas></div></div>
+    </div>
+    <div class="card"><div class="card-h"><span>Memory score B for every window</span><b>z units</b></div><canvas class="cv-l h-180"></canvas>
+      <div class="legend"><span style="color:var(--c-action)"><i></i>caption z</span><span style="color:var(--c-memory)"><i></i>image z</span><span style="color:var(--fg)"><i></i>B</span><span style="color:var(--fg-3)"><i class="band"></i>labelled incident</span></div></div></div>`,
+  panel: () => `<p class="p-lead">The window's image vector is compared with every normal window's image vector in the same way. Then the two novelties are added: that sum is <b>B</b>, the memory score.</p>
+    <div class="pb"><h4>The maths</h4><div class="eq">
+      ${eqr('<i>z</i><sub>img</sub>', '(1 − max cos(<i>v</i><sub>win</sub>, memory) − median) / scale = <b class="k-mem" data-k="zi">—</b>')}
+      ${eqr('B', '<i>z</i><sub>cap</sub> + <i>w</i> · <i>z</i><sub>img</sub>')}
+      ${eqr('', '<span class="k-act" data-k="zt">—</span> + <span data-k="w">0.25</span> · <span class="k-mem" data-k="zi2">—</span> = <b data-k="b">—</b>')}
+    </div></div>
+    <div class="pb"><h4>Try it</h4><div class="ctl">${rangeHTML('rw', 'Image weight <i>w</i>', 0, 1, .05, S.P.imgW, 'Captions carry most of the meaning; the picture adds a quarter.')}</div></div>
+    ${chips([['No prompts'], ['Image weight 0.25']])}`,
+  make(v, p, done) {
+    let lp = done ? 1 : 0;
+    const W = () => ensureR().wins[S.sel];
+    const a = cv($('.cv-a', v), o => Scene.draw(o.ctx, o.w, o.h, W().start + 2, 'incident', o.dpr));
+    const b = cv($('.cv-b', v), o => { if (!lp) return emptyMsg(o, 'Found after the search'); const m = W().iMatch; Scene.draw(o.ctx, o.w, o.h, m.start + 2, V.CLIPS[m.clip], o.dpr); });
+    const ch = cv($('.cv-l', v), o => { const res = ensureR(), G = chartZ(o, { lo: -2, hi: 6 }); if (!lp) return; winSeries(o, G, res, [['zT', C['c-action'], 1.6], ['zI', C['c-memory'], 1.6], ['B', C.fg, 2.6]], lp); const w = W(), x = G.X(w.start + 2); o.ctx.fillStyle = C.surface; dot(o.ctx, x, G.Y(w.B), 5.5); o.ctx.strokeStyle = C.fg; o.ctx.lineWidth = 2; o.ctx.beginPath(); o.ctx.arc(x, G.Y(w.B), 5, 0, 7); o.ctx.stroke(); });
+    function text() {
+      const w = W(), ok = lp >= 1, f = (k, x) => put(p, k, ok ? x : '—');
+      put(v, 'tw', winSpan(w)); put(v, 'cw', ok ? `clip ${pad2(w.iMatch.clip + 1)} · ${V.CLIPS[w.iMatch.clip].kind.name} · cos ${w.iSim.toFixed(3)}` : '');
+      f('zi', zf(w.zI)); f('zi2', zf(w.zI)); f('zt', zf(w.zT)); f('b', zf(w.B)); put(p, 'w', S.P.imgW.toFixed(2));
+    }
+    const all = () => { a.paint(); b.paint(); ch.paint(); text(); };
+    const wp = wpick(v, w => w.B / 4, C['fg-3'], all);
+    bindRange(p, 'rw', x => x.toFixed(2), val => { S.P.imgW = val; recompute(); wp.paint(); all(); });
+    text();
+    return { async run(g) { await tween(1300, e => { lp = e; b.paint(); ch.paint(); }, easeIO); if (!alive(g)) return; lp = 1; all(); } };
+  },
+});
+
+/* ---- 8 · judge ---- */
+STEPS.push({
+  key: 'judge', badge: '8', phase: 'Score', short: 'Judge J', title: 'Ask Gemma, with normal moments as context', btn: 'Ask the judge',
+  viz: () => `<div class="vgrid">${wpickHTML()}
+    <div class="duo wide">
+      <div class="card"><div class="card-h"><span>Prompt</span><b data-k="k">8 normal moments</b></div><div class="prompt" data-k="prompt"></div></div>
+      <div class="card"><div class="card-h"><span>Gemma's next digit</span><b data-k="rt"></b></div><canvas class="cv-d h-220"></canvas></div>
+    </div>
+    <div class="card"><div class="card-h"><span>Ratings of normal memory windows</span><b data-k="cal"></b></div><canvas class="cv-hi h-120"></canvas></div></div>`,
+  panel: () => `<p class="p-lead">Novelty alone cannot tell <b>unusual</b> from <b>harmful</b>. The judge reads the caption next to the most similar normal moments from memory and rates it from 0 to 9.</p>
+    <div class="pb"><h4>The maths</h4><div class="eq">
+      ${eqr('context', '8 most similar distinct memory captions')}
+      ${eqr('rating', 'Σ<sub><i>d</i></sub> <i>d</i> · P(next token = <i>d</i>) = <b data-k="r">—</b>')}
+      ${eqr('<i>z</i><sub>J</sub>', '(<span data-k="r2">r</span> − <span data-k="m">mean</span>) / <span data-k="s">std</span> = <b class="k-judge" data-k="zj">—</b>')}
+    </div></div>
+    <div class="pb"><h4>Calibrate the judge</h4><p>A seeded sample of normal memory windows is rated in the same way, each shown only captions that also occur in other clips. Their mean and standard deviation turn ratings into <i>z</i>. Most normal ratings are near 0, so the mean and standard deviation are used here rather than the median and IQR.</p></div>
+    <div class="pb"><p>The prompt names no category of incident. The ratings here are simulated to show the mechanism.</p></div>
+    ${chips([['Gemma 4 31B', 1], ['One token'], ['Ratings cached']])}`,
+  make(v, p, done) {
+    let pr = done ? 1 : 0, mk = done ? 1 : 0;
+    const W = () => ensureR().wins[S.sel], jc = () => ensureR().jc;
+    const dg = cv($('.cv-d', v), o => {
+      const g = o.ctx, w = W(), pl = 8, pb = 22, pt = 18, bw = (o.w - pl * 2) / 10, H = o.h - pb - pt, mx = Math.max(...w.probs);
+      g.font = `500 11px ${MONO}`; g.textAlign = 'center';
+      for (let d = 0; d < 10; d++) { const h = H * w.probs[d] / mx * pr; g.fillStyle = mix(C['c-normal'], C['c-anom'], d / 9); rr(g, pl + d * bw + 3, pt + H - h, bw - 6, Math.max(1, h), 4); g.fill(); g.fillStyle = C['fg-3']; g.fillText(String(d), pl + d * bw + bw / 2, o.h - 6); }
+      if (pr >= 1) { const x = pl + (w.rating + .5) * bw; g.strokeStyle = C.fg; g.lineWidth = 2; g.beginPath(); g.moveTo(x, pt - 6); g.lineTo(x, pt + H); g.stroke(); g.fillStyle = C.fg; g.font = `600 11px ${MONO}`; g.textAlign = x > o.w - 90 ? 'right' : 'left'; g.fillText(`expected ${w.rating.toFixed(2)}`, x + (x > o.w - 90 ? -6 : 6), pt + 4); }
+    });
+    const hi = cv($('.cv-hi', v), o => { const c = jc(), vals = c.rows.map(r => r.rating).sort((a, b) => a - b); hist(o, vals, { lo: 0, hi: 9, col: C['c-judge'], center: c.mean, band: [c.mean - c.std, c.mean + c.std], label: `mean ${c.mean.toFixed(2)} · std ${c.std.toFixed(2)}`, marker: mk ? W().rating : null, mProg: mk, mLabel: d => `r = ${d.toFixed(2)}` }); });
+    function text() {
+      const w = W(), c = jc(), ok = pr >= 1, f = (k, x) => put(p, k, ok ? x : '—');
+      put(v, 'prompt', `<p class="pk">Typical normal moments from this setting:</p><ul>${w.ret.map(r => `<li>${r.text}</li>`).join('')}</ul><p class="pk">New moment:</p><p class="pn">${w.caption}</p><p class="pk">How likely is it that something abnormal is happening? Reply with one digit from 0 (clearly normal) to 9 (clearly abnormal).</p>`);
+      put(v, 'rt', ok ? `rating ${w.rating.toFixed(2)}` : ''); put(v, 'cal', `${c.rows.length} windows`);
+      f('r', w.rating.toFixed(2)); f('r2', w.rating.toFixed(2)); f('m', c.mean.toFixed(2)); f('s', c.std.toFixed(2)); f('zj', zf(w.zJ));
+    }
+    const all = () => { dg.paint(); hi.paint(); text(); };
+    wpick(v, w => w.rating / 9, C['c-judge'], all); text();
+    return { async run(g) { pr = 0; mk = 0; all(); await sleep(250); await tween(900, e => { pr = e; dg.paint(); }, easeOut); if (!alive(g)) return; pr = 1; await tween(700, e => { mk = e; hi.paint(); }, easeIO); mk = 1; all(); } };
+  },
+});
+
+/* ---- 9 · fusion ---- */
+STEPS.push({
+  key: 'fuse', badge: '9', phase: 'Score', short: 'B + J', title: 'Add the two kinds of evidence', btn: 'Add them up',
+  viz: () => `<div class="vgrid">${wpickHTML()}
+    <div class="fuse">${zgauge('b', 'Memory B', 'var(--fg-2)')}<span class="op">+</span>${zgauge('j', 'Judge z', 'var(--c-judge)')}<span class="op" data-k="opJ">× 1.00</span><span class="op">=</span>${zgauge('s', 'Window score', 'var(--fg)', 1)}</div>
+    <div class="card"><div class="card-h"><span>All windows</span><b>z units · plotted at window centre</b></div><canvas class="cv-l h-200"></canvas>
+      <div class="legend"><span style="color:var(--fg-2)"><i></i>B</span><span style="color:var(--c-judge)"><i></i>judge z</span><span style="color:var(--fg)"><i></i>window score</span><span style="color:var(--c-thresh)"><i class="dash"></i>alert level</span><span style="color:var(--fg-3)"><i class="band"></i>labelled incident</span></div></div></div>`,
+  panel: () => `<p class="p-lead">Both scores are in the same unit, distance from normal in spreads, so they can simply be <b>added</b>.</p>
+    <div class="pb"><h4>The maths</h4><div class="eq">
+      ${eqr('score', 'B + <i>λ</i> · <i>z</i><sub>J</sub>')}
+      ${eqr('', '<span data-k="b">—</span> + <span data-k="l">1.00</span> · <span class="k-judge" data-k="j">—</span> = <b data-k="s">—</b>')}
+    </div></div>
+    <div class="pb"><h4>Try it</h4><div class="ctl">${rangeHTML('rl', 'Judge weight <i>λ</i>', 0, 2, .05, S.P.jW, 'At 0 only the memory decides.')}</div></div>
+    <div class="pb"><p>The memory says how <b>different</b> a moment is from normal; the judge says how <b>worrying</b> that difference is. A new but harmless moment gets a high B and a low judge score.</p></div>
+    ${chips([['λ = 1'], ['No prompts in B']])}`,
+  make(v, p, done) {
+    let gP = done ? 1 : 0, lP = done ? 1 : 0;
+    const W = () => ensureR().wins[S.sel];
+    function gauges() {
+      const w = W(), vals = { b: w.B, j: w.zJ * S.P.jW, s: w.s };
+      for (const k in vals) { const x = clamp(vals[k] / 14, 0, 1) * gP; $(`[data-g="${k}"]`, v).setAttribute('stroke-dasharray', `${(x * 263.9).toFixed(1)} 264`); $(`[data-gt="${k}"]`, v).textContent = gP ? zf(vals[k]) : '—'; }
+      put(v, 'opJ', `× ${S.P.jW.toFixed(2)}`); const ok = gP >= 1;
+      put(p, 'b', ok ? zf(w.B) : '—'); put(p, 'j', ok ? zf(w.zJ) : '—'); put(p, 's', ok ? zf(w.s) : '—'); put(p, 'l', S.P.jW.toFixed(2));
+    }
+    const ch = cv($('.cv-l', v), o => { const res = ensureR(), G = chartZ(o, zRange(res)); thLine(o, G, S.P.th, false); if (!lP) return; winSeries(o, G, res, [['B', C['fg-2'], 1.6], ['zJ', C['c-judge'], 1.6, w => w.zJ * S.P.jW], ['s', C.fg, 2.6]], lP); const w = W(), x = G.X(w.start + 2); o.ctx.fillStyle = C.surface; dot(o.ctx, x, G.Y(w.s), 5.5); o.ctx.strokeStyle = C.fg; o.ctx.lineWidth = 2; o.ctx.beginPath(); o.ctx.arc(x, G.Y(w.s), 5, 0, 7); o.ctx.stroke(); });
+    const wp = wpick(v, w => w.s / 14, C['fg-3'], () => { gauges(); ch.paint(); });
+    bindRange(p, 'rl', x => x.toFixed(2), val => { S.P.jW = val; recompute(); wp.paint(); gauges(); ch.paint(); });
+    gauges();
+    return { async run(g) { await tween(900, e => { gP = e; gauges(); }, easeIO); if (!alive(g)) return; gP = 1; gauges(); await tween(1200, e => { lP = e; ch.paint(); }, easeIO); } };
+  },
+});
+
+/* ---- 10 · frames + smoothing ---- */
+STEPS.push({
+  key: 'proj', badge: '10', phase: 'Decide', short: 'Frame scores', title: 'Give every frame a score', btn: 'Project and smooth',
+  viz: () => `<div class="vgrid">
+    <div class="card"><div class="card-h"><span>Frame scores</span><b data-k="wd"></b></div><canvas class="cv-f h-220"></canvas>
+      <div class="legend"><span style="color:var(--fg-3)"><i></i>mean of covering windows</span><span style="color:var(--fg)"><i></i>after smoothing</span><span style="color:var(--c-thresh)"><i class="dash"></i>alert level</span><span style="color:var(--fg-3)"><i class="band"></i>labelled incident</span></div></div></div>`,
+  panel: () => `<p class="p-lead">Each of the <b>720 frames</b> takes the average score of the windows that cover it. A centred moving average then smooths the curve.</p>
+    <div class="pb"><h4>The maths</h4><div class="eq">
+      ${eqr('<i>s</i>(<i>f</i>)', 'mean of score(<i>w</i>) over windows <i>w</i> covering <i>f</i>')}
+      ${eqr('width', 'min(36 s, video length / 4) = <b data-k="ws">6 s</b>')}
+      ${eqr('<i>ŝ</i>(<i>f</i>)', 'average of <i>s</i> over that width, centred on <i>f</i>')}
+    </div></div>
+    <div class="pb"><h4>Try it</h4><div class="ctl">${rangeHTML('rs', 'Smoothing width (s)', 0, 12, 1, S.P.smoothS, 'For this 24-second clip the rule gives 6 s. Long videos use up to 36 s.')}</div></div>
+    ${chips([['No model'], ['30 fps output']])}`,
+  make(v, p, done) {
+    let up = done ? 720 : 0;
+    const fc = cv($('.cv-f', v), o => { const res = ensureR(), G = chartZ(o, zRange(res)); thLine(o, G, S.P.th, false); frameLine(o, G, res.pooled, { upto: up, col: rgba(C['fg-3'], .9), lw: 1.4 }); frameLine(o, G, res.frame, { upto: up, lw: 2.4 }); });
+    const info = () => { put(v, 'wd', `smoothing ${S.P.smoothS} s`); put(p, 'ws', `${S.P.smoothS} s`); };
+    bindRange(p, 'rs', x => `${x} s`, val => { S.P.smoothS = val; recompute(); fc.paint(); info(); }); info();
+    return { async run(g) { await tween(2200, e => { up = Math.max(2, Math.floor(e * 720)); fc.paint(); }, lin); up = 720; fc.paint(); } };
+  },
+});
+
+/* ---- 11 · alert ---- */
+STEPS.push({
+  key: 'alert', badge: '11', phase: 'Decide', short: 'Alert', title: 'Raise the alarm', btn: 'Play with alerts',
+  viz: () => `<div class="vgrid">
+    <div class="alert-top">
+      <div class="player"><canvas class="cv-p"></canvas><div class="hud"><span class="rec">CAM 04</span><span class="mono" data-k="tc">00:00.0</span></div><span class="badge" data-badge>Normal</span></div>
+      <div class="tiles4">
+        <div class="mt"><div class="k">ROC-AUC</div><div class="v" data-k="auc">—</div><div class="s">same at any level</div></div>
+        <div class="mt"><div class="k">Precision</div><div class="v" data-k="prec">—</div><div class="s" data-k="precs"></div></div>
+        <div class="mt"><div class="k">Recall</div><div class="v" data-k="rec">—</div><div class="s" data-k="recs"></div></div>
+        <div class="mt"><div class="k">F1</div><div class="v" data-k="f1">—</div><div class="s" data-k="fas"></div></div>
+      </div>
+    </div>
+    <div class="duo wide2">
+      <div class="card"><div class="card-h"><span>Frame scores and alerts</span><b data-k="thv"></b></div><canvas class="cv-a h-180" style="touch-action:none"></canvas>
+        <div class="legend"><span style="color:var(--c-anom)"><i class="band"></i>alert</span><span style="color:var(--c-thresh)"><i class="dash"></i>alert level, drag it</span><span style="color:var(--fg-3)"><i class="band"></i>labelled incident</span></div></div>
+      <div class="card"><div class="card-h"><span>ROC curve</span><b>frame level</b></div><canvas class="cv-roc h-180"></canvas></div>
+    </div></div>`,
+  panel: () => `<p class="p-lead">A frame raises an alert when its smoothed score is more than <b>3 spreads</b> above normal.</p>
+    <div class="pb"><h4>The maths</h4><div class="eq">
+      ${eqr('alert(<i>f</i>)', '<i>ŝ</i>(<i>f</i>) &gt; <b class="k-th" data-k="th">3.0</b>')}
+      ${eqr('shown as', 'σ(<i>ŝ</i> − 3), so the level sits at 0.5')}
+      ${eqr('first alert', '<b data-k="fa">—</b>, incident labelled from 12.5 s')}
+      ${eqr('frames', '<span data-k="cm">—</span>')}
+    </div></div>
+    <div class="pb"><h4>Try it</h4><div class="ctl">${rangeHTML('rt', 'Alert level (z)', 0, 12, .1, S.P.th, 'Drag the orange line or use the slider. The level trades precision against recall; ROC-AUC does not change.')}</div></div>
+    <div class="pb"><p>The level of 3 was set by rule, not tuned on labelled incidents.</p></div>
+    ${chips([['z > 3'], ['Frame-level ROC-AUC']])}`,
+  make(v, p, done) {
+    let t = 0, playing = false, last = 0, shown = done;
+    const pl = cv($('.cv-p', v), o => Scene.draw(o.ctx, o.w, o.h, t, 'incident', o.dpr));
+    let G = null;
+    const ch = cv($('.cv-a', v), o => {
+      const res = ensureR(); G = chartZ(o, zRange(res)); frameLine(o, G, res.frame, { alerts: S.P.th });
+      const g = o.ctx, x = G.X(t); g.strokeStyle = rgba(C.fg, .55); g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, G.pt); g.lineTo(x, G.pt + G.H); g.stroke();
+      thLine(o, G, S.P.th, true);
+    });
+    const roc = cv($('.cv-roc', v), o => {
+      const m = ensureR().metrics, g = o.ctx, pl2 = 28, pr2 = 10, pt = 8, pb = 22, Wd = o.w - pl2 - pr2, H = o.h - pt - pb, side = Math.min(Wd, H), ox = pl2 + (Wd - side) / 2, X = x => ox + x * side, Y = y => pt + (1 - y) * side;
+      g.strokeStyle = C.line; g.lineWidth = 1; g.strokeRect(X(0) + .5, Y(1) + .5, side, side);
+      g.save(); g.setLineDash([3, 3]); g.strokeStyle = C['fg-3']; g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(1), Y(1)); g.stroke(); g.restore();
+      g.font = `500 10px ${MONO}`; g.fillStyle = C['fg-3']; g.textAlign = 'center'; g.fillText('false positive rate', X(.5), o.h - 4);
+      g.save(); g.translate(ox - 10, Y(.5)); g.rotate(-Math.PI / 2); g.fillText('recall', 0, 0); g.restore();
+      g.fillStyle = rgba(C['c-action'], .12); g.beginPath(); g.moveTo(X(0), Y(0)); for (const [fx, ty] of m.roc) g.lineTo(X(fx), Y(ty)); g.lineTo(X(1), Y(0)); g.closePath(); g.fill();
+      g.strokeStyle = C['c-action']; g.lineWidth = 2; g.beginPath(); m.roc.forEach(([fx, ty], i) => { if (i) g.lineTo(X(fx), Y(ty)); else g.moveTo(X(fx), Y(ty)); }); g.stroke();
+      if (shown) { g.fillStyle = C['c-thresh']; dot(g, X(m.fpr), Y(m.tpr), 5.5); }
+      g.fillStyle = C.fg; g.font = `600 11px ${MONO}`; g.textAlign = 'right'; g.fillText(`AUC ${m.auc.toFixed(3)}`, X(1) - 6, Y(0) - 8);
+    });
+    const rs = bindRange(p, 'rt', x => x.toFixed(1), val => setTh(val, false));
+    function setTh(val, fromChart) { S.P.th = clamp(Math.round(val * 10) / 10, 0, 12); recompute(); if (fromChart) rs.set(S.P.th); ch.paint(); roc.paint(); metrics(1); hud(); }
+    function hud() { put(v, 'tc', tcode(t)); const on = ensureR().frame[clamp(Math.floor(t * 30), 0, 719)] > S.P.th, b = $('[data-badge]', v); b.classList.toggle('on', on); b.textContent = on ? 'Alert' : 'Normal'; }
+    function metrics(k) {
+      const m = ensureR().metrics, fa = firstAlert(), q = x => shown ? x : '—';
+      put(v, 'auc', q((m.auc * k).toFixed(3))); put(v, 'prec', q((m.precision * k).toFixed(3))); put(v, 'rec', q((m.recall * k).toFixed(3))); put(v, 'f1', q((m.f1 * k).toFixed(3)));
+      put(v, 'precs', shown ? `${m.tp} of ${m.tp + m.fp} alert frames` : ''); put(v, 'recs', shown ? `${m.tp} of ${m.tp + m.fn} incident frames` : ''); put(v, 'fas', shown ? (fa == null ? 'no alert' : `first alert ${fa.toFixed(1)} s`) : '');
+      put(v, 'thv', `level z ${S.P.th.toFixed(1)}`); put(p, 'th', S.P.th.toFixed(1)); put(p, 'fa', fa == null ? 'none' : `${fa.toFixed(2)} s`); put(p, 'cm', `TP ${m.tp} · FP ${m.fp} · FN ${m.fn} · TN ${m.tn}`);
+    }
+    let drag = false; const cvA = $('.cv-a', v);
+    cvA.addEventListener('pointerdown', e => { if (!G) return; const r = cvA.getBoundingClientRect(), y = e.clientY - r.top; if (Math.abs(y - G.Y(S.P.th)) < 14) { drag = true; cvA.setPointerCapture(e.pointerId); } else { playing = false; t = clamp((e.clientX - r.left - G.pl) / G.W * 24, 0, 23.99); pl.paint(); ch.paint(); hud(); } });
+    cvA.addEventListener('pointermove', e => { if (!G) return; const r = cvA.getBoundingClientRect(); if (drag) { const rg = zRange(ensureR()); setTh(rg.lo + (1 - (e.clientY - r.top - G.pt) / G.H) * (rg.hi - rg.lo), true); return; } cvA.style.cursor = Math.abs(e.clientY - r.top - G.Y(S.P.th)) < 14 ? 'ns-resize' : 'col-resize'; });
+    cvA.addEventListener('pointerup', () => { drag = false; });
+    loop(now => { const dt = Math.min(.1, (now - last) / 1000); last = now; if (!playing) return; t += dt * 1.6; if (t >= 24) { t = 23.99; playing = false; } pl.paint(); ch.paint(); hud(); });
+    metrics(1); hud();
+    return { async run(g) { shown = true; roc.paint(); await tween(900, e => metrics(e), easeOut); if (!alive(g)) return; metrics(1); t = 0; playing = true; } };
+  },
+});
+
+/* ================= shell ================= */
+const viz = $('#viz'), panel = $('#panel'), stage = $('#stage'), rail = $('#rail');
+const mainBtn = $('#mainBtn'), prevBtn = $('#prevBtn'), nextBtn = $('#nextBtn'), count = $('#count');
+let inst = {}, running = false, stageVis = true, simVis = false;
+const PH = [['Memory', [0]], ['Perceive', [1, 2, 3, 4, 5]], ['Score', [6, 7, 8, 9]], ['Decide', [10, 11]]];
+rail.innerHTML = PH.map(([n, ids]) => `<div class="rgroup" role="listitem"><span>${n}</span><div class="rsteps">${ids.map(i => `<button type="button" class="rstep" data-i="${i}" aria-label="Step ${STEPS[i].badge}: ${STEPS[i].short}"><span class="n">${STEPS[i].badge}</span><span class="t">${STEPS[i].short}</span></button>`).join('')}</div></div>`).join('');
+rail.addEventListener('click', e => { const b = e.target.closest('.rstep'); if (b) go(+b.dataset.i); });
+function updateChrome(pulse) {
+  const st = STEPS[S.i], done = S.done.has(st.key);
+  mainBtn.disabled = false;
+  mainBtn.textContent = !done ? st.btn : S.i < STEPS.length - 1 ? `Next: ${STEPS[S.i + 1].short}` : 'See the architecture';
+  mainBtn.classList.remove('ready'); if (pulse && !reduce()) { void mainBtn.offsetWidth; mainBtn.classList.add('ready'); }
+  prevBtn.disabled = S.i === 0; nextBtn.disabled = S.i === STEPS.length - 1; count.textContent = `${S.i + 1} / ${STEPS.length}`;
+  $$('.rstep', rail).forEach(b => { const j = +b.dataset.i; if (j === S.i) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); b.classList.toggle('done', S.done.has(STEPS[j].key)); });
+}
+function go(i, opt = {}) {
+  i = clamp(i, 0, STEPS.length - 1);
+  for (const d of D) { try { d(); } catch (e) { /* ignore */ } }
+  D = []; gen++; running = false; S.i = i; const st = STEPS[i], done = S.done.has(st.key);
+  ensureR();
+  viz.innerHTML = `<div class="fx">${st.viz()}</div>`;
+  panel.innerHTML = `<div class="fx"><div class="p-eyebrow"><span class="p-num">${st.badge}</span><span>${st.phase} · step ${i + 1} of ${STEPS.length}</span></div><h3>${st.title}</h3>${st.panel()}</div>`;
+  inst = st.make(viz, panel, done) || {};
+  updateChrome(false);
+  if (opt.scroll !== false) {
+    const r = stage.getBoundingClientRect();
+    if (r.top < 40 || r.top > window.innerHeight * .55) window.scrollTo({ top: window.scrollY + r.top - 120, behavior: reduce() ? 'auto' : 'smooth' });
+    const cur = $(`.rstep[data-i="${i}"]`, rail);
+    if (cur) { const a = cur.getBoundingClientRect(), b = rail.getBoundingClientRect(); if (a.left < b.left || a.right > b.right) rail.scrollBy({ left: a.left - b.left - 40, behavior: reduce() ? 'auto' : 'smooth' }); }
+  }
+}
+mainBtn.addEventListener('click', async () => {
+  const st = STEPS[S.i];
+  if (!S.done.has(st.key)) {
+    if (running) return; running = true; mainBtn.disabled = true; mainBtn.textContent = 'Running…';
+    const g = gen; try { await (inst.run ? inst.run(g) : null); } catch (e) { console.error(e); }
+    if (g !== gen) return; running = false; S.done.add(st.key); updateChrome(true);
+  } else if (S.i < STEPS.length - 1) go(S.i + 1);
+  else finish();
+});
+prevBtn.addEventListener('click', () => go(S.i - 1));
+nextBtn.addEventListener('click', () => go(S.i + 1));
+document.addEventListener('keydown', e => {
+  if (!simVis || e.altKey || e.ctrlKey || e.metaKey) return;
+  const tg = e.target; if (tg && (tg.matches('input, textarea, select, [role="slider"]') || tg.isContentEditable)) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); go(S.i + 1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); go(S.i - 1); }
+});
+new IntersectionObserver(es => { stageVis = es[0].isIntersecting; }, { threshold: .15 }).observe(stage);
+new IntersectionObserver(es => { simVis = es[0].isIntersecting; }, { threshold: .2 }).observe($('#walkthrough'));
+function finish() {
+  const res = ensureR(), w = res.wins[S.sel], m = res.metrics, fa = firstAlert(), ch = [];
+  if (S.P.alpha !== DEF.alpha) ch.push('no centring');
+  if (S.P.imgW !== DEF.imgW) ch.push(`image weight ${S.P.imgW.toFixed(2)}`);
+  if (S.P.jW !== DEF.jW) ch.push(`λ ${S.P.jW.toFixed(2)}`);
+  if (S.P.smoothS !== DEF.smoothS) ch.push(`smoothing ${S.P.smoothS} s`);
+  if (S.P.th !== DEF.th) ch.push(`alert level ${S.P.th.toFixed(1)}`);
+  const rc = $('#recap');
+  rc.innerHTML = `<span class="k">Your run</span><span>window <b class="mono">${winSpan(w)}</b></span><span>B <b class="mono">${zf(w.B)}</b></span><span>judge <b class="mono">${zf(w.zJ)}</b></span><span>score <b class="mono">${zf(w.s)}</b></span><span>first alert <b class="mono">${fa == null ? 'none' : fa.toFixed(1) + ' s'}</b></span><span>ROC-AUC <b class="mono">${m.auc.toFixed(3)}</b></span><span>${ch.length ? 'changed: ' + ch.join(', ') : 'default settings'}</span>`;
+  rc.hidden = false;
+  $('#architecture').scrollIntoView({ behavior: reduce() ? 'auto' : 'smooth', block: 'start' });
+}
+function openStep(n) { go(n, { scroll: false }); $('#walkthrough').scrollIntoView({ behavior: reduce() ? 'auto' : 'smooth', block: 'start' }); }
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-go]'); if (!b || b.closest('#walkthrough')) return; e.preventDefault(); openStep(+b.dataset.go); });
+document.addEventListener('keydown', e => { const n = e.target && e.target.closest && e.target.closest('.dn[data-go]'); if (n && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openStep(+n.dataset.go); } });
+(() => {
+  const fig = $('#dgfig'); if (!fig) return;
+  const setZoom = z => { fig.classList.toggle('full', z === 'full'); $$('[data-seg="zoom"] button', fig).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === z))); };
+  bindSeg(fig, 'zoom', setZoom);
+  if (fig.clientWidth && fig.clientWidth < 900) setZoom('full');
+  const links = $$('.toc a'), secs = links.map(a => document.getElementById(a.getAttribute('href').slice(1))).filter(Boolean);
+  const spy = new IntersectionObserver(es => { for (const en of es) if (en.isIntersecting) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id)); }, { rootMargin: '-25% 0px -65% 0px' });
+  secs.forEach(sec => spy.observe(sec));
+})();
+
+/* ================= hero ================= */
+let heroT = reduce() ? 14 : 0;
+function hero() {
+  const scr = cv($('#heroCv'), null, HB);
+  const rg = { lo: -1.5, hi: 14 };
+  const tr = cv($('#heroTrack'), o => {
+    if (!R0) return; const g = o.ctx, Y = v => 4 + (1 - (clamp(v, rg.lo, rg.hi) - rg.lo) / (rg.hi - rg.lo)) * (o.h - 8), X = f => (f + .5) / 720 * o.w;
+    g.fillStyle = rgba(C['fg-3'], .13); g.fillRect(X(V.GT[0] * 30), 0, X(V.GT[1] * 30) - X(V.GT[0] * 30), o.h);
+    const gr = g.createLinearGradient(0, 0, 0, o.h); gr.addColorStop(0, rgba(C.fg, .14)); gr.addColorStop(1, rgba(C.fg, 0));
+    g.fillStyle = gr; g.beginPath(); g.moveTo(0, o.h); for (let f = 0; f < 720; f += 3) g.lineTo(X(f), Y(R0.frame[f])); g.lineTo(o.w, o.h); g.closePath(); g.fill();
+    const th = DEF.th; g.save(); g.setLineDash([4, 4]); g.strokeStyle = C['c-thresh']; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, Y(th)); g.lineTo(o.w, Y(th)); g.stroke(); g.restore();
+    g.lineWidth = 2; g.lineJoin = 'round';
+    for (const red of [false, true]) { g.strokeStyle = red ? C['c-anom'] : C.fg; g.beginPath(); let pen = false; for (let f = 0; f < 720; f++) { const on = R0.frame[f] > th; if (on === red) { if (!pen) { g.moveTo(X(f), Y(R0.frame[f])); pen = true; } else g.lineTo(X(f), Y(R0.frame[f])); } else pen = false; } g.stroke(); }
+    const x = X(heroT * 30); g.strokeStyle = C.fg; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, o.h); g.stroke(); g.fillStyle = C.fg; dot(g, x, Y(R0.frame[Math.min(719, Math.floor(heroT * 30))]), 3.5);
+  }, HB);
+  let vis = true, last = performance.now(), lastCap = '';
+  new IntersectionObserver(es => { vis = es[0].isIntersecting; }).observe($('.hero-demo'));
+  const tcEl = $('#heroTc'), badge = $('#heroBadge'), cap = $('#heroCap');
+  loop(now => {
+    const dt = Math.min(.1, (now - last) / 1000); last = now;
+    if (!vis || document.hidden || !R0) return;
+    if (!reduce()) heroT = (heroT + dt) % 24;
+    if (scr.w) { scr.ctx.clearRect(0, 0, scr.w, scr.h); Scene.draw(scr.ctx, scr.w, scr.h, heroT, 'incident', scr.dpr); }
+    tr.paint(); tcEl.textContent = tcode(heroT);
+    const on = R0.frame[Math.min(719, Math.floor(heroT * 30))] > DEF.th; badge.classList.toggle('on', on); badge.textContent = on ? 'Anomaly' : 'Normal';
+    const j = clamp(Math.round(heroT - 2), 0, R0.wins.length - 1), c = R0.wins[j].caption;
+    if (c !== lastCap) { lastCap = c; cap.style.opacity = 0; setTimeout(() => { cap.textContent = c; cap.style.opacity = 1; }, reduce() ? 0 : 180); }
+  }, HB);
+}
+
+/* ================= boot ================= */
+readTokens();
+recompute(); R0 = V.score({ ...DEF });
+go(0, { scroll: false });
+setTimeout(() => {
+  hero();
+  const jobs = []; for (let s = 0; s < 24; s++) jobs.push(() => Scene.thumbURL(s, false));
+  jobs.push(() => V.project(S.P.alpha, ensureR().wins));
+  const work = () => { const t0 = performance.now(); while (jobs.length && performance.now() - t0 < 10) jobs.shift()(); if (jobs.length) idle(work); };
+  idle(work);
+}, 30);
+const retheme = () => { readTokens(); if (running) { ALL.forEach(o => o.paint()); } else go(S.i, { scroll: false }); };
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', retheme);
+new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => ALL.forEach(o => o.paint()));
+})();
+</script>

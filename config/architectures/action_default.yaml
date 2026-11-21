@@ -1,13 +1,17 @@
-# Action + memory: the thesis default model (formerly expanded_actions95_visual_memory5_v1).
-# score = 0.95 * action + 0.05 * calibrated visual normal-memory score
+# Action + memory: the baseline model of the report (Sec. 4.8, "Action + memory model").
+# score = 0.80 * action + 0.20 * calibrated visual normal-memory score
 # action = 0.875 * image-prompt score + 0.125 * caption-prompt score (26 normal / 26 anomalous prompts)
+# 0.80 is the best balance of a 0-1 weight sweep (step 0.05) on UCF-Crime and XD-Violence.
+# The saved runs in outputs/evaluations/<dataset>/action_default/ were made at 0.95 / 0.05;
+# the report's 80/20 numbers re-score their saved window components exactly
+# (outputs/results/thesis_analyses_20261119/action_memory80_analyses.py).
 # memory_weight 0 gives pure action scoring and loads no bank.
 # The threshold is an alert cutoff only; AUC/AP do not depend on it.
 extends:
 - ../base.yaml
 architecture: action
 action:
-  memory_weight: 0.05
+  memory_weight: 0.2
   memory_image_weight: 1.0
   threshold: 0.5935198772337466
   temperature: 0.1

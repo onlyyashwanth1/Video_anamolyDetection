@@ -6,8 +6,8 @@ heuristic, not probabilities.
 
 ActionMemoryScorer is the architecture:
     score = (1 - memory_weight) * action + memory_weight * calibrated memory
-memory_weight 0.05 is the thesis default; 0 is pure action scoring and then no
-memory bank is loaded. The shared_best configuration is this architecture with
+memory_weight 0.2 (80/20) is the report's action + memory baseline; 0 is pure
+action scoring and then no memory bank is loaded. The shared_best configuration is this architecture with
 memory_weight 0 and its own prompt settings.
 """
 

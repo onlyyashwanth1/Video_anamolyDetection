@@ -26,7 +26,7 @@ def test_default_config_identifies_the_thesis_model():
     prompts = yaml.safe_load((ROOT / "research/config/ucf_action_prompts_expanded.yaml").read_text())
     assert config["architecture"] == "action"
     action = config["action"]
-    assert action["memory_weight"] == .05
+    assert action["memory_weight"] == pytest.approx(.2)
     assert action["image_weight"] == .875
     assert action["memory_image_weight"] == 1
     assert action["threshold"] == pytest.approx(0.5935198772337466)
@@ -68,7 +68,7 @@ def test_default_scoring_uses_visual_memory_and_requested_blends():
     c = result.component_scores
     assert c["memory_score"] == c["memory_image_score"]
     assert c["action_score"] == pytest.approx(.875 * c["action_image_score"] + .125 * c["action_text_score"])
-    assert result.anomaly_score == pytest.approx(.95 * c["action_score"] + .05 * c["memory_image_score"])
+    assert result.anomaly_score == pytest.approx(.8 * c["action_score"] + .2 * c["memory_image_score"])
     assert result.closest_match == "walking"
 
 

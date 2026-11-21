@@ -48,3 +48,6 @@ Thumbs.db
 
 # Permanent generated artifacts stay on disk, outside version control.
 outputs
+
+# Local backup archives of the final report and results
+backup/

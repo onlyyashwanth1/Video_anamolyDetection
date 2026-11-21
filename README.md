@@ -1,16 +1,34 @@
-# Training-Free Video Anomaly Detection
+# Training-Free Domain-Independent Video Anomaly Detection
 
 Frozen foundation models only (CLIP ViT-L/14, Gemma 4 31B via Ollama, MPNet); no
-weights are trained or fine-tuned. Three architectures share one perception
-pipeline and are chosen with a config file:
+weights are trained or fine-tuned. All models share one perception pipeline and
+are chosen with a config file. The B.Tech project report is in `BTP_THESIS_VAD/`.
 
-| Architecture | Config | Normal reference | Score |
-|---|---|---|---|
-| **Observe-then-detect** (basic model) | `config/architectures/observe_detect.yaml` | first 40% of the same video | top-k similarity of each later window to the observed captions |
-| **Action + memory** | `action_default.yaml` (thesis default), `shared_best.yaml` | saved normal-memory bank (optional) | 0.95 x CLIP action prompts + 0.05 x calibrated memory; `memory_weight: 0` = prompts only |
-| **Memory novelty B / B+J** | `memory_b.yaml`, `b_plus_j.yaml` | saved normal-memory bank | B = caption + image novelty z-scores; B+J adds the memory-aware Gemma judge |
+| Model | Role in the report | Config | Normal reference | Score |
+|---|---|---|---|---|
+| **B + J** (memory + judge) | **proposed model** | `config/architectures/b_plus_j.yaml` | saved normal-memory bank | caption + image novelty z-scores (B) plus the memory-aware Gemma judge (J) |
+| Memory score B | ablation of the proposed model | `memory_b.yaml` | saved normal-memory bank | B alone, no judge |
+| Action + memory | baseline | `action_default.yaml` | saved normal-memory bank | 0.80 x CLIP action prompts + 0.20 x calibrated memory |
+| Shared configuration | baseline | `shared_best.yaml` | none | CLIP action prompts only, one setting for UCF-Crime and XD-Violence |
+| Observe-then-detect | starting idea (single videos only) | `observe_detect.yaml` | first 40% of the same video | similarity of later windows to the observed captions |
 
-How each one works, its settings and its known results: [docs/ARCHITECTURES.md](docs/ARCHITECTURES.md).
+How each one works, its settings and its results: [docs/ARCHITECTURES.md](docs/ARCHITECTURES.md).
+
+## Results
+
+Pooled frame-level metrics, the same numbers as the report
+(`outputs/results/architectures/results.md`, refresh with `scripts/collect_results.py`):
+
+| Model | UCF-Crime AUC | XD-Violence AP | ShanghaiTech AUC | Avenue AUC |
+|---|---|---|---|---|
+| **B + J (proposed)** | 78.10 | 64.86 | **63.96** | 63.86 |
+| Memory score B | 72.58 | 54.00 | 62.17 | 61.27 |
+| Action + memory (80/20) | 78.09 | 60.73 | 61.75 | **66.38** |
+| Shared configuration | **81.58** | **74.36** | 52.09 | 58.05 |
+
+The shared configuration's prompts name the benchmark categories, so it is strongest on
+UCF-Crime / XD-Violence and weakest outside them. B + J uses no prompts and is the most
+balanced across the four datasets.
 
 ## Layout
 
@@ -20,9 +38,9 @@ config/
   architectures/            one file per model (extends base.yaml)
   datasets/                 ucf, xd, shanghaitech, avenue: paths, bank, checkpoints, Ollama port
 src/anomaly_detection/
-  perception/               video sampling, 4 s windows, CLIP (unmasked), Gemma captions, MPNet
+  perception/               video sampling, 4 s windows, CLIP, Gemma captions, MPNet
   memory/                   observation memory, saved normal-memory bank (build/save/load)
-  scoring/                  observe_detect.py, action.py, memory_novelty.py (B), judge.py (J)
+  scoring/                  memory_novelty.py (B), judge.py (J), action.py, observe_detect.py
   temporal/                 window scores -> frame scores (pooling, smoothing)
   reasoning/                Gemma via Ollama/Transformers, optional explanations
   evaluation/               datasets, resumable video cache, multi-GPU runner, metrics
@@ -30,14 +48,20 @@ src/anomaly_detection/
 scripts/
   evaluate.py               benchmark evaluation (multi-GPU, resumable)
   run_screen.sh             evaluate.py detached in GNU screen
-  run_video.py              score one video (any architecture), text report + SRT
-  migrate_unmasked_cache.py convert old masked checkpoints without re-captioning
+  run_video.py              score one video (any model), text report + SRT
+  collect_results.py        results table of all models x datasets
   import_judge_ratings.py   reuse saved B+J judge ratings
   prepare_shanghaitech.py, prepare_avenue.py, smoke_ollama.py
-research/                   frozen experiment scripts behind the thesis numbers (see research/README.md)
+  migrate_unmasked_cache.py one-off conversion of the old masked caches (done; inputs removed)
+research/                   frozen experiment scripts behind earlier studies (see research/README.md)
 tests/                      CPU tests, no model downloads
-docs/                       ARCHITECTURES.md, archive/ (pre-restructure notes)
+docs/                       ARCHITECTURES.md, site/ (walkthrough page source), diagrams/, archive/
+BTP_THESIS_VAD/             the report: LaTeX source, figures, build script (see its README.md)
+outputs/                    results, caches, memory banks (not in git)
+backup/                     zipped final report and results (not in git)
 ```
+
+Datasets are read from `/home/atripathi/prudhvi/Dataset/` (paths in `config/datasets/`).
 
 ## Setup
 
@@ -53,11 +77,11 @@ CLIP and MPNet load from the Hugging Face cache.
 
 ```bash
 # One video
-python scripts/run_video.py --video clip.mp4                                   # observe-then-detect
 python scripts/run_video.py --video clip.mp4 --architecture b_plus_j --dataset ucf
+python scripts/run_video.py --video clip.mp4                                   # observe-then-detect
 
-# Benchmarks (captions and CLIP features are cached per video and shared by all architectures)
-python scripts/evaluate.py --dataset ucf --architecture action_default --gpus 0,1,2,3 --dry-run
+# Benchmarks (captions and CLIP features are cached per video and shared by all models)
+python scripts/evaluate.py --dataset ucf --architecture b_plus_j --gpus 0,1,2,3 --dry-run
 bash scripts/run_screen.sh --dataset xd --architecture b_plus_j --gpus 0,1,2,3
 ```
 
@@ -72,13 +96,20 @@ and writes `outputs/evaluations/<dataset>/<architecture>/<time>/summary.json`.
 pytest tests/
 ```
 
+`research/tests/` is skipped on this tree; it runs from the `a3cb86e` snapshot
+(see `research/README.md`).
+
 ## Notes
 
-- Object masking (YOLO-World + ByteTrack background blur) was removed: it hurt
-  memory scoring and XD-Violence. Feature caches and banks are now versioned
-  `window_caption_unmasked_v3`; old masked ones are refused. See
-  `scripts/migrate_unmasked_cache.py` to reuse their Gemma captions.
+- Frames are not masked. An earlier object-masking stage (YOLO-World + ByteTrack
+  background blur) was removed because it hurt memory scoring and XD-Violence;
+  feature caches and banks are versioned `window_caption_unmasked_v3` and old
+  masked ones are refused.
+- The saved `action_default` runs in `outputs/evaluations/` were made at the old
+  0.95 / 0.05 weight. The config is now 0.80 / 0.20, the report's baseline; its
+  numbers re-score those runs' saved window components exactly
+  (`outputs/results/thesis_analyses_20261119/action_memory80_analyses.py`).
 - Prompts in `action_default` / `shared_best` were chosen during development on
   the benchmarks; `shared_best`'s prompts name the benchmark categories.
-- B and B+J smooth over the whole video and center captions per video, so they
+- B and B+J smooth over the whole video and centre captions per video, so they
   are offline (complete-video) models.

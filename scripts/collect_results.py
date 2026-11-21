@@ -4,6 +4,10 @@ Reads outputs/evaluations/<dataset>/<architecture>/<run>/ (run.json status "comp
 recomputes pooled frame ROC-AUC / AP from the per-video predictions, and for UCF and XD
 also on the study's grouped validation / evaluation partitions (seed 42, 20 / 80).
 
+The saved action_default runs were made at the old 0.95 / 0.05 weight. The report's
+action + memory baseline (80/20, now the action_default config) re-scores their window
+components exactly; its numbers are read from ACTION80 and shown as an extra row.
+
 Usage: python scripts/collect_results.py [--out outputs/results/architectures]
 Writes <out>/results.json and <out>/results.md.
 """
@@ -19,8 +23,11 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 ROOT = Path(__file__).resolve().parents[1]
 EVALS = ROOT / "outputs/evaluations"
 SPLITS = ROOT / "outputs/results/score_ablations_20261026/ablations.json"
+ACTION80 = ROOT / "outputs/results/thesis_analyses_20261119/action_memory80_analyses.json"
 DATASETS = ["ucf", "xd", "shanghaitech", "avenue"]
 ARCHITECTURES = ["action_default", "shared_best", "memory_b", "b_plus_j"]
+LABELS = {"action_default": "action_default (95/5 run)", "action80": "action + memory 80/20 (report baseline)",
+          "shared_best": "shared_best", "memory_b": "memory_b (B)", "b_plus_j": "b_plus_j (B+J, proposed)"}
 SPLIT_NAMES = {"ucf": "UCF-Crime", "xd": "XD-Violence"}
 PRIMARY = {"ucf": "auc", "xd": "ap", "shanghaitech": "auc", "avenue": "auc"}
 
@@ -96,6 +103,24 @@ def evaluate_run(run, dataset):
     return result
 
 
+def action80_rows():
+    """The 80/20 baseline, re-scored from the 95/5 runs by action_memory80_analyses.py."""
+    if not ACTION80.exists():
+        return []
+    data = json.loads(ACTION80.read_text())
+    rows = []
+    for dataset in DATASETS:
+        if dataset not in data:
+            continue
+        d = data[dataset]
+        part = d.get("by_partition", {})
+        rows.append({"dataset": dataset, "architecture": "action80", "run": d["run"], "reference": None,
+                     "weight": d["weight"],
+                     "all": {"auc": d["all"]["auc"], "ap": d["all"]["ap"]},
+                     "validation": part.get("validation"), "evaluation": part.get("evaluation")})
+    return rows
+
+
 def fmt(metric):
     return "—" if metric is None else f"{metric:.2f}"
 
@@ -118,31 +143,35 @@ def main():
             rows.append(row)
             print(dataset, architecture, run.name if run else "missing", flush=True)
 
+    rows += action80_rows()
     stamp = datetime.now().isoformat(timespec="seconds")
     (args.out / "results.json").write_text(json.dumps({"generated": stamp, "rows": rows}, indent=2))
 
     lines = [f"# Architecture results (generated {stamp})", "",
              "Pooled frame-level metrics from `outputs/evaluations/`, unmasked features, restructured code.",
              "UCF / XD partitions: grouped 20% validation / 80% evaluation split (seed 42) of the earlier study.",
+             "The 80/20 baseline row re-scores the window components of the 95/5 action_default runs "
+             "(`outputs/results/thesis_analyses_20261119/action_memory80_analyses.json`).",
              "", "## Primary metric (UCF, ShanghaiTech, Avenue: ROC-AUC; XD: AP)", "",
              "| Architecture | UCF AUC | XD AP | ShanghaiTech AUC | Avenue AUC |", "|---|---|---|---|---|"]
     by_key = {(r["dataset"], r["architecture"]): r for r in rows}
-    for architecture in ARCHITECTURES:
+    shown = ["b_plus_j", "memory_b", "action80", "action_default", "shared_best"]
+    for architecture in [a for a in shown if any(k[1] == a for k in by_key)]:
         cells = []
         for dataset in DATASETS:
-            r = by_key[(dataset, architecture)]
+            r = by_key.get((dataset, architecture), {"reference": None})
             value = r.get("all", {}) and r["all"][PRIMARY[dataset]] if r.get("all") else None
             ref = r["reference"]
             ref_text = f" (was {ref[PRIMARY[dataset]]}, {ref['note']})" if ref and PRIMARY[dataset] in ref else ""
             cells.append(fmt(value) + ref_text)
-        lines.append(f"| {architecture} | " + " | ".join(cells) + " |")
+        lines.append(f"| {LABELS[architecture]} | " + " | ".join(cells) + " |")
 
     lines += ["", "## All metrics", "",
               "| Dataset | Architecture | AUC all | AP all | AUC val | AP val | AUC eval | AP eval | Run |",
               "|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         get = lambda part, m: (r.get(part) or {}).get(m)
-        lines.append(f"| {r['dataset']} | {r['architecture']} | {fmt(get('all', 'auc'))} | {fmt(get('all', 'ap'))} | "
+        lines.append(f"| {r['dataset']} | {LABELS[r['architecture']]} | {fmt(get('all', 'auc'))} | {fmt(get('all', 'ap'))} | "
                      f"{fmt(get('validation', 'auc'))} | {fmt(get('validation', 'ap'))} | "
                      f"{fmt(get('evaluation', 'auc'))} | {fmt(get('evaluation', 'ap'))} | "
                      f"{'`' + r['run'] + '`' if r['run'] else 'missing'} |")

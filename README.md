@@ -30,6 +30,17 @@ The shared configuration's prompts name the benchmark categories, so it is stron
 UCF-Crime / XD-Violence and weakest outside them. B + J uses no prompts and is the most
 balanced across the four datasets.
 
+## Walkthrough pages
+
+Two interactive step-by-step pages explain the models on a simulated street clip
+(illustrative data, not benchmark results):
+
+- **Memory + Judge (B + J, the proposed model):** https://claude.ai/artifact/YUqrMTZtJ3iU8gGB5jaQW3
+  (source: `docs/site/memory_judge_src/`, built into `docs/site/memory_judge.html`).
+- **Training-free VAD (the earlier action + memory pipeline):** https://claude.ai/artifact/9MNzLJzMo59vms754oeoig.
+  It shows the design at that time: the 95 / 5 action / memory weight and an
+  object-masking step that was later removed (see Notes).
+
 ## Layout
 
 ```

@@ -17,17 +17,14 @@ Results table: `outputs/results/architectures/results.md`
 4. **Report finished:** `BTP_THESIS_VAD/main.pdf`, 75 pages. Backups of the final report and
    its results: `backup/BTP_THESIS_VAD_final_20261121.zip`, `backup/thesis_results_20261121.tgz`.
    The per-pass report backups were deleted at the end of the project.
+5. **Git:** `restructure` was pushed to GitHub and merged into `main` (fast-forward). The report
+   (`BTP_THESIS_VAD/`, including its PDFs) is tracked in git.
+6. **Walkthrough sites** are shared with anyone who has the link and are listed in `README.md`.
+   The first site is kept as a record of the earlier design (95 / 5 weight, masking step).
 
 ## Still open
 
-- [ ] **Git:** the `restructure` branch is local only. Push it to origin and/or merge it into `main`?
-- [ ] **Off-server copy:** download the two files in `backup/`; `BTP_THESIS_VAD/` and `outputs/`
-      are not in git.
-- [ ] **First walkthrough site** (https://claude.ai/artifact/9MNzLJzMo59vms754oeoig) still shows
-      "② Object-centric masking" as a step. Remove it, or leave the site as a record of the
-      earlier design?
-- [ ] **"Memory + Judge" site** (https://claude.ai/artifact/YUqrMTZtJ3iU8gGB5jaQW3) is private.
-      Share it from the page's Share menu if wanted. Sources: `docs/site/memory_judge_src/`
-      (rebuild: `python docs/site/memory_judge_src/build.py`).
-- [ ] **Live 40% memory branch** (`../Video_anamolyDetection_live`, branch `live-memory-40`) has
-      uncommitted edits in 8 files. Commit, discard or keep as is?
+- [ ] **Off-server copy of `outputs/`:** the results behind the report's numbers are not in git;
+      download `backup/thesis_results_20261121.tgz`.
+- [ ] **Live 40% memory branch** (`../Video_anamolyDetection_live`, branch `live-memory-40`, not
+      on GitHub) has uncommitted edits in 8 files. Commit and keep, or discard?

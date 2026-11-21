@@ -2,7 +2,7 @@
 
 The report (`BTP_THESIS_VAD/`, Chapter 4) proposes **B + J** and compares it with two
 baselines. Stage numbers below follow Chapter 4 and the "Memory + Judge" walkthrough
-page (`docs/site/`).
+page (https://claude.ai/artifact/YUqrMTZtJ3iU8gGB5jaQW3, source in `docs/site/`).
 
 | Model | Config | Role |
 |---|---|---|

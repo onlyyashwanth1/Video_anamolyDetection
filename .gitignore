@@ -51,3 +51,9 @@ outputs
 
 # Local backup archives of the final report and results
 backup/
+
+# The report's figures and compiled PDF are part of the report source.
+!BTP_THESIS_VAD/**/*.pdf
+
+# Temporary Ollama server log of the running-example run
+BTP_THESIS_VAD/scripts/example_data/ollama_logs/

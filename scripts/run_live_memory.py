@@ -36,8 +36,7 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--observe-fraction", type=float, help="Share of the video used as memory (default 0.4)")
     group.add_argument("--observe-seconds", type=float, help="Fixed observation time instead of a fraction")
-    parser.add_argument("--threshold", type=float, help="Alert threshold in robust spreads (default 3.0)")
-    parser.add_argument("--fusion", choices=("mean", "median"), help="Combine components by mean (default) or median")
+    parser.add_argument("--threshold", type=float, help="Alert when the 0-1 anomaly score is above this (default 0.5)")
     parser.add_argument("--no-judge", action="store_true", help="Disable the memory-aware Gemma judge")
     parser.add_argument("--explain", action="store_true", help="Add a Gemma 'Why:' line to anomaly cues")
     parser.add_argument("--plain-srt", action="store_true", help="No <font color> tags in the SRT")
@@ -56,8 +55,6 @@ def main():
         live.setdefault("observe_seconds", None)
     if args.threshold is not None:
         live["threshold"] = args.threshold
-    if args.fusion:
-        live["fusion"] = args.fusion
     if args.no_judge:
         live["judge"]["enabled"] = False
         live["judge_weight"] = 0.0

@@ -32,9 +32,9 @@ live:
   judge:
     enabled: true
     memories: 8
-  fusion: mean              # median = at least 2 of visual/caption/judge must agree
-                            # (ignores camera cuts, may miss purely visual events)
-  threshold: 3.0            # alert when deviation > 3 robust spreads above normal
+  threshold: 0.5            # anomaly score is 0 (normal) to 1 (anomalous); alert above 0.5.
+                            # Each component is 0-1 and they are averaged, so one alone
+                            # reaches at most 1/3: an alert needs at least two to agree.
   explain_anomalies: false  # true: one extra Gemma call per anomaly cue for a "Why:" line
   srt:
     cue_seconds: 4.0

@@ -64,24 +64,26 @@ def test_novel_windows_score_higher_than_normal_ones():
     memory = windows(60)[:40]
     settings = {"k": 5, "calibration_guard_seconds": 4, "judge_weight": 0}
     model = SelfMemory.build(memory, _scene(rng, 40), _scene(rng, 40), settings, FPS)
-    normal = model.score(_scene(rng, 20), _scene(rng, 20))["deviation"]
-    novel = model.score(_scene(rng, 20, offset=5), _scene(rng, 20, offset=7))["deviation"]
-    assert np.median(normal) < 2 < np.min(novel)
+    normal = model.score(_scene(rng, 20), _scene(rng, 20))["score"]
+    novel = model.score(_scene(rng, 20, offset=5), _scene(rng, 20, offset=7))["score"]
+    assert ((0 <= normal) & (normal <= 1)).all() and ((0 <= novel) & (novel <= 1)).all()
+    assert np.median(normal) < .1 and np.min(novel) > .9
     assert model.calibration["held_out_windows"] == 40
     centered = SelfMemory.build(memory, _scene(rng, 40), _scene(rng, 40), {**settings, "centering": True}, FPS)
-    assert np.isfinite(centered.score(_scene(rng, 3), _scene(rng, 3))["deviation"]).all()
+    assert np.isfinite(centered.score(_scene(rng, 3), _scene(rng, 3))["score"]).all()
 
 
-def test_judge_component_is_calibrated_and_required():
+def test_judge_component_is_rating_over_nine_and_required():
     rng = np.random.default_rng(1)
     memory = windows(60)[:30]
     settings = {"k": 5, "judge_weight": 1.0}
     model = SelfMemory.build(memory, _scene(rng, 30), _scene(rng, 30), settings, FPS,
                              judge_scores=rng.uniform(0, 2, 30))
     visual, text = _scene(rng, 1), _scene(rng, 1)
-    low = model.score(visual, text, np.asarray([1.0]))["deviation"][0]
-    high = model.score(visual, text, np.asarray([9.0]))["deviation"][0]
-    assert high > low
+    low = model.score(visual, text, np.asarray([1.0]))
+    high = model.score(visual, text, np.asarray([9.0]))
+    assert np.isclose(low["judge_score"][0], 1 / 9) and np.isclose(high["judge_score"][0], 1)
+    assert high["score"][0] > low["score"][0]
     with pytest.raises(ValueError):
         model.score(visual, text)
 
@@ -95,16 +97,16 @@ def test_retrieve_returns_distinct_captions():
 def test_cues_cover_video_and_start_anomaly_at_onset(tmp_path):
     events = windows(30)
     memory, test = split_windows(events, 12 * FPS)
-    deviation = [0.0] * len(test)
+    score = [0.0] * len(test)
     for j, window in enumerate(test):
         if 20 <= window.start_time < 23:
-            deviation[j] = 9.0
-    segments = build_segments(memory, test, deviation, 30)
+            score[j] = 1.0
+    segments = build_segments(memory, test, score, 30)
     assert segments[0][0] == 0 and segments[-1][1] == 30
     assert all(a[1] == b[0] for a, b in zip(segments, segments[1:]))
     captions = {("memory", i): w.description for i, w in enumerate(memory)}
     captions.update({("test", j): w.description for j, w in enumerate(test)})
-    cues = build_cues(segments, captions, threshold=3.0, cue_seconds=4)
+    cues = build_cues(segments, captions, threshold=1 / 3, cue_seconds=4)
     labels = [c.label for c in cues]
     assert labels[0] == OBSERVE and ANOMALY in labels and NORMAL in labels
     assert all(c.end - c.start <= 4 + 1e-6 for c in cues)
@@ -112,20 +114,20 @@ def test_cues_cover_video_and_start_anomaly_at_onset(tmp_path):
     # Mean pooling over covering windows: onset when most covering windows are anomalous.
     assert 19 <= first.start <= 21 and first.caption == f"w{int(first.start)}"
     path = tmp_path / "out.srt"
-    write_srt(cues, path, 3.0, 12.0)
+    write_srt(cues, path, 0.5, 12.0)
     text = path.read_text()
     assert text.startswith("1\n00:00:00,000 --> ") and "[!! ANOMALY !!]" in text
     assert "<font color=" in text and text.count(" --> ") == len(cues)
-    write_srt(cues, path, 3.0, 12.0, colors=False)
+    write_srt(cues, path, 0.5, 12.0, colors=False)
     assert "<font" not in path.read_text()
 
 
-def test_median_fusion_needs_two_components():
+def test_one_component_alone_cannot_alert():
     rng = np.random.default_rng(2)
     memory = windows(60)[:30]
-    settings = {"k": 5, "judge_weight": 1.0, "fusion": "median"}
+    settings = {"k": 5, "judge_weight": 1.0}
     model = SelfMemory.build(memory, _scene(rng, 30), _scene(rng, 30), settings, FPS,
-                             judge_scores=rng.uniform(0, 2, 30))
-    visual_only = model.score(_scene(rng, 1, offset=5), _scene(rng, 1), np.asarray([1.0]))["deviation"][0]
-    both = model.score(_scene(rng, 1, offset=5), _scene(rng, 1), np.asarray([9.0]))["deviation"][0]
-    assert visual_only < 3 < both
+                             judge_scores=np.zeros(30))
+    visual_only = model.score(_scene(rng, 1, offset=5), _scene(rng, 1), np.asarray([0.0]))["score"][0]
+    with_judge = model.score(_scene(rng, 1, offset=5), _scene(rng, 1), np.asarray([9.0]))["score"][0]
+    assert visual_only < .5 < with_judge

@@ -1,7 +1,7 @@
 """Turn overlapping scored windows into readable, non-overlapping subtitles.
 
 Windows are 4 s long and start every second, so they overlap. The timeline
-is cut at window starts. Each test segment gets the mean deviation of the
+is cut at window starts. Each test segment gets the mean score of the
 windows that cover it. A cue then runs for at most ``cue_seconds`` and is
 cut early whenever the label changes, so an anomaly cue starts at onset.
 A cue's caption is the caption of the window that starts with the cue.
@@ -24,14 +24,14 @@ class Cue:
     end: float
     label: str
     caption: str
-    deviation: float = None
+    score: float = None
     window_index: int = None
     explanation: str = None
     extra: dict = field(default_factory=dict)
 
 
-def build_segments(memory, test, test_deviation, duration):
-    """Return [(start, end, phase, window, deviation)] covering the whole video."""
+def build_segments(memory, test, test_score, duration):
+    """Return [(start, end, phase, window, score)] covering the whole video."""
     segments = []
     for i, window in enumerate(memory):
         end = memory[i + 1].start_time if i + 1 < len(memory) else test[0].start_time
@@ -39,24 +39,24 @@ def build_segments(memory, test, test_deviation, duration):
     for j, window in enumerate(test):
         end = test[j + 1].start_time if j + 1 < len(test) else max(window.end_time, duration)
         middle = (window.start_time + end) / 2
-        covering = [test_deviation[n] for n, w in enumerate(test) if w.start_time <= middle < w.end_time]
+        covering = [test_score[n] for n, w in enumerate(test) if w.start_time <= middle < w.end_time]
         segments.append((window.start_time, end, "TEST", ("test", j),
-                         float(sum(covering) / len(covering)) if covering else float(test_deviation[j])))
+                         float(sum(covering) / len(covering)) if covering else float(test_score[j])))
     return [s for s in segments if s[1] > s[0]]
 
 
 def build_cues(segments, captions, threshold, cue_seconds=4.0):
     """Group segments into cues of one label; ``captions`` maps window keys to text."""
     cues = []
-    for start, end, phase, key, deviation in segments:
-        label = OBSERVE if phase == OBSERVE else (ANOMALY if deviation > threshold else NORMAL)
+    for start, end, phase, key, score in segments:
+        label = OBSERVE if phase == OBSERVE else (ANOMALY if score > threshold else NORMAL)
         last = cues[-1] if cues else None
         if last and last.label == label and end - last.start <= cue_seconds + 1e-6:
             last.end = end
-            if deviation is not None:
-                last.deviation = max(last.deviation, deviation)
+            if score is not None:
+                last.score = max(last.score, score)
             continue
-        cues.append(Cue(start, end, label, captions[key], deviation,
+        cues.append(Cue(start, end, label, captions[key], score,
                         key[1] if key[0] == "test" else None))
     return cues
 
@@ -73,9 +73,9 @@ def cue_lines(cue, threshold, observe_until, colors=True):
     if cue.label == OBSERVE:
         tag = f"[OBSERVING - learning normal, until {observe_until:.0f}s]"
     elif cue.label == NORMAL:
-        tag = f"[NORMAL] deviation {cue.deviation:.1f} (alert at {threshold:.1f})"
+        tag = f"[NORMAL] score {cue.score:.2f} (alert above {threshold:.2f})"
     else:
-        tag = f"[!! ANOMALY !!] deviation {cue.deviation:.1f} (alert at {threshold:.1f})"
+        tag = f"[!! ANOMALY !!] score {cue.score:.2f} (alert above {threshold:.2f})"
     caption = cue.caption or "(no caption)"
     lines = [tag, caption]
     if cue.explanation:

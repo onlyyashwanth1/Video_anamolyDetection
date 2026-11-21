@@ -10,14 +10,19 @@ video sets up its own normal memory.
    itself and every window within 4 s of it. These held-out distances show how far
    ordinary moments of *this* scene usually are from memory.
 3. **Test (remaining 60%).** Each new window is captioned and compared with the frozen
-   memory. Its *deviation* is how many normal spreads (median / IQR) it sits above that
-   held-out level. It combines visual novelty, caption novelty and, by default, a
-   memory-aware Gemma judge (the B+J recipe). The judge rates the caption 0–9 after seeing
-   the 8 most similar normal captions from memory. **Deviation > 3.0 = ANOMALY.**
+   memory. It gets an **anomaly score from 0 (normal) to 1 (anomalous)**, the mean of three
+   0–1 parts, as in the main project:
+   - visual novelty and caption novelty: sigmoid(z − 3), where z is how many normal spreads
+     (median / IQR) the distance sits above the held-out level. 3 spreads gives 0.5.
+   - memory-aware Gemma judge (the B+J recipe): its 0–9 rating / 9. The judge rates the
+     caption after seeing the 8 most similar normal captions from memory.
+
+   **Score > 0.5 = ANOMALY.** One part alone reaches at most 1/3, so an alert needs at least
+   two parts to agree. A camera cut (visual only) therefore stays normal.
 4. **Subtitles.** The SRT covers the whole video:
    - `[OBSERVING - learning normal, until 43s]` + caption (blue)
-   - `[NORMAL] deviation 0.8 (alert > 3.0)` + caption (green)
-   - `[!! ANOMALY !!] deviation 5.1 (alert > 3.0)` + caption of what happens (red)
+   - `[NORMAL] score 0.04 (alert above 0.50)` + caption (green)
+   - `[!! ANOMALY !!] score 0.92 (alert above 0.50)` + caption of what happens (red)
 
    A cue lasts at most 4 s. A new cue starts as soon as the label changes, so the anomaly
    caption appears at onset. The caption shown is from the window starting at that moment.
@@ -41,7 +46,7 @@ on that GPU. Ollama listens on port 11600 (`--port` to change).
 |---|---|
 | `--observe-fraction 0.3` | use 30% for memory (default 0.4) |
 | `--observe-seconds 60` | fixed observation time instead |
-| `--threshold 2.5` | alert threshold in robust spreads (default 3.0) |
+| `--threshold 0.6` | alert when the 0–1 score is above this (default 0.5) |
 | `--no-judge` | memory distances only; about one third fewer Gemma calls |
 | `--explain` | one extra Gemma call per anomaly cue, adds a `Why:` line |
 | `--plain-srt` | no colour tags (for players that print them literally) |
@@ -71,9 +76,10 @@ onto the playing VLC window.
   is hours; trim it or use `--no-judge`.
 - The method assumes **the first 40% is normal**. An anomaly inside the observation period
   becomes "normal" memory.
-- Anything new after 40% counts as a deviation, e.g. the first car in an empty street.
+- Anything new after 40% raises novelty, e.g. the first car in an empty street.
   The judge is there to down-weight harmless novelty, but it is not perfect.
 - A subtitle segment averages the windows covering it. Labels therefore use up to 4 s of
   look-ahead: near-live, not frame-instant.
-- The threshold 3.0 and equal weights are defaults. They were not tuned on labelled
-  single-video data.
+- The threshold 0.5 and equal weights were checked on one video (merged_video.mp4):
+  normal 0.02–0.05, camera cut 0.35, motorcycle fall 0.83–0.99. That is one labelled
+  video, so treat 0.5 as a sensible default, not a tuned value.

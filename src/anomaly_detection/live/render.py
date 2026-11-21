@@ -51,7 +51,7 @@ def render(video_path, cues, output_path, threshold, observe_until):
                 if cue.label == OBSERVE:
                     head = f"OBSERVING: learning normal (until {observe_until:.0f}s)"
                 else:
-                    head = f"{'ANOMALY' if cue.label == ANOMALY else 'NORMAL'}   deviation {cue.deviation:.1f} / alert at {threshold:.1f}"
+                    head = f"{'ANOMALY' if cue.label == ANOMALY else 'NORMAL'}   score {cue.score:.2f} / alert above {threshold:.2f}"
                 body = textwrap.wrap(cue.caption or "", chars)[:3]
                 if cue.explanation:
                     body += textwrap.wrap("Why: " + cue.explanation, chars)[:2]

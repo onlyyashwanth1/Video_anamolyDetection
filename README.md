@@ -33,11 +33,14 @@ balanced across the four datasets.
 ## Walkthrough pages
 
 Two interactive step-by-step pages explain the models on a simulated street clip
-(illustrative data, not benchmark results):
+(illustrative data, not benchmark results). Each is one self-contained HTML file in
+`docs/site/`: download it and open it in any browser, offline. With GitHub Pages
+enabled (Settings > Pages > branch `main`, folder `/docs`) they are also served at
+https://onlyyashwanth1.github.io/Video_anamolyDetection/.
 
-- **Memory + Judge (B + J, the proposed model):** https://claude.ai/artifact/YUqrMTZtJ3iU8gGB5jaQW3
-  (source: `docs/site/memory_judge_src/`, built into `docs/site/memory_judge.html`).
-- **Training-free VAD (the earlier action + memory pipeline):** https://claude.ai/artifact/9MNzLJzMo59vms754oeoig.
+- **Memory + Judge (B + J, the proposed model):** `docs/site/memory_judge.html`
+  (source: `docs/site/memory_judge_src/`, rebuilt with `build.py`).
+- **Training-free VAD (the earlier action + memory pipeline):** `docs/site/training_free_vad.html`.
   It shows the design at that time: the 95 / 5 action / memory weight and an
   object-masking step that was later removed (see Notes).
 

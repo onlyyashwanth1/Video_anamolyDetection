@@ -299,6 +299,5 @@ variable `GEMMA_MODEL_PATH` to a local Gemma model folder.
 
 ## 9. The report
 
-`BTP_THESIS_VAD/` holds the LaTeX source of the report. See
-[its README](../BTP_THESIS_VAD/README.md) for how to build it and which script makes
-which figure.
+The final report is [BTP_report.pdf](BTP_report.pdf). Chapter 4 describes the models
+stage by stage, Chapter 5 has the experiments, and Appendix A lists every prompt verbatim.

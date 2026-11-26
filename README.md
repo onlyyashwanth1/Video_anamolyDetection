@@ -1,7 +1,7 @@
 # Training-Free Domain-Independent Video Anomaly Detection
 
 B.Tech project, IIT Indore. The full report is
-[BTP_THESIS_VAD/BTP_report.pdf](BTP_THESIS_VAD/BTP_report.pdf).
+[docs/BTP_report.pdf](docs/BTP_report.pdf).
 
 **The problem.** Given a video, find the moments where something abnormal happens
 (a fight, an explosion, a road accident), without training a model on labelled
@@ -59,7 +59,6 @@ They are also online at https://onlyyashwanth1.github.io/Video_anamolyDetection/
 ```
 Video_anamolyDetection/
 ├── README.md               this overview
-├── BTP_THESIS_VAD/         the project report: PDF, LaTeX source, figures
 ├── config/                 settings files that choose the model and the dataset
 │   ├── base.yaml             settings shared by every model
 │   ├── architectures/        one file per model (b_plus_j.yaml, memory_b.yaml, ...)
@@ -74,6 +73,7 @@ Video_anamolyDetection/
 ├── scripts/                command-line tools: score one video, run a benchmark, ...
 ├── tests/                  automated tests (CPU only, no model downloads)
 ├── docs/
+│   ├── BTP_report.pdf        the project report
 │   ├── DEVELOPER_GUIDE.md    which file does what, settings, output files
 │   ├── ARCHITECTURES.md      how each model computes its score
 │   ├── results/              the final results table, explained

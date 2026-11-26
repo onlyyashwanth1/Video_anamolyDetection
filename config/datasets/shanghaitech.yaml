@@ -3,9 +3,9 @@
 # Ollama ports differ per dataset so runs can share a machine.
 evaluation:
   dataset: ShanghaiTech
-  normal_dir: /home/atripathi/prudhvi/Dataset/ShanghaiTech/Normal_Videos
-  test_dir: /home/atripathi/prudhvi/Dataset/ShanghaiTech/Testing_Video
-  annotation_file: /home/atripathi/prudhvi/Dataset/ShanghaiTech/Temporal_Anomaly_Annotation.txt
+  normal_dir: data/ShanghaiTech/Normal_Videos
+  test_dir: data/ShanghaiTech/Testing_Video
+  annotation_file: data/ShanghaiTech/Temporal_Anomaly_Annotation.txt
   memory_bank_path: outputs/memory/shanghaitech_unmasked_v1.npz
   checkpoint_dir: outputs/checkpoints/shanghaitech_unmasked
 reasoning:

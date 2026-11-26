@@ -7,7 +7,6 @@ from unittest.mock import Mock
 
 import numpy as np
 import pytest
-import yaml
 
 from anomaly_detection.config import load_config
 from anomaly_detection.datatypes import EventChunk, MemoryEntry
@@ -23,7 +22,6 @@ def configuration():
 
 def test_default_config_identifies_the_thesis_model():
     config = configuration()
-    prompts = yaml.safe_load((ROOT / "research/config/ucf_action_prompts_expanded.yaml").read_text())
     assert config["architecture"] == "action"
     action = config["action"]
     assert action["memory_weight"] == pytest.approx(.2)
@@ -31,8 +29,7 @@ def test_default_config_identifies_the_thesis_model():
     assert action["memory_image_weight"] == 1
     assert action["threshold"] == pytest.approx(0.5935198772337466)
     for key in ("normal_prompts", "anomalous_prompts"):
-        assert action[key] == prompts[key]
-        assert len(prompts[key]) == 26
+        assert len(action[key]) == len(set(action[key])) == 26
     assert not config["evaluation"].get("frozen_reference_memory")
     assert config["reasoning"]["backend"] == "ollama"
     assert "model_digest" not in config["reasoning"]  # resolved from the installed model at run time

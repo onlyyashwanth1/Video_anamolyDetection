@@ -4,11 +4,13 @@ Gemma image captions and text generation, using Transformers or local Ollama.
 
 from io import BytesIO
 import logging
+import os
 import time
 
 from PIL import Image
 
-MODEL_PATH = "/home/nverma/models/gemma-4-31B-it"
+# Transformers backend only (the default backend is Ollama): a local folder or Hugging Face id.
+MODEL_PATH = os.environ.get("GEMMA_MODEL_PATH", "")
 
 _processor = None
 _model = None
@@ -99,6 +101,8 @@ def _load():
 
     global _processor, _model
     if _model is None:
+        if not MODEL_PATH:
+            raise RuntimeError("Set GEMMA_MODEL_PATH to the Gemma model folder, or use the Ollama backend")
         print("[gemma] Loading model (first call only)...")
         _processor = AutoProcessor.from_pretrained(MODEL_PATH)
         _model = AutoModelForCausalLM.from_pretrained(

@@ -57,3 +57,6 @@ backup/
 
 # Temporary Ollama server log of the running-example run
 BTP_THESIS_VAD/scripts/example_data/ollama_logs/
+
+# Datasets (a folder or a symlink to wherever they are stored)
+/data

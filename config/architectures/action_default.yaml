@@ -2,9 +2,6 @@
 # score = 0.80 * action + 0.20 * calibrated visual normal-memory score
 # action = 0.875 * image-prompt score + 0.125 * caption-prompt score (26 normal / 26 anomalous prompts)
 # 0.80 is the best balance of a 0-1 weight sweep (step 0.05) on UCF-Crime and XD-Violence.
-# The saved runs in outputs/evaluations/<dataset>/action_default/ were made at 0.95 / 0.05;
-# the report's 80/20 numbers re-score their saved window components exactly
-# (outputs/results/thesis_analyses_20261119/action_memory80_analyses.py).
 # memory_weight 0 gives pure action scoring and loads no bank.
 # The threshold is an alert cutoff only; AUC/AP do not depend on it.
 extends:

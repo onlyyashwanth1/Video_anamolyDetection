@@ -3,7 +3,10 @@
 # Usage: bash scripts/run_screen.sh --dataset ucf --architecture action_default --gpus 0,1,2,3 [options]
 set -euo pipefail
 VAD_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-VAD_PYTHON="${VAD_PYTHON:-$VAD_ROOT/.venv/bin/python}"
+# Python: $VAD_PYTHON if set, else the repository's .venv if present, else python3 on PATH.
+if [[ -z "${VAD_PYTHON:-}" ]]; then
+    if [[ -x "$VAD_ROOT/.venv/bin/python" ]]; then VAD_PYTHON="$VAD_ROOT/.venv/bin/python"; else VAD_PYTHON="$(command -v python3)"; fi
+fi
 VAD_SESSION="${VAD_SESSION:-vad-eval}"
 cd "$VAD_ROOT"
 

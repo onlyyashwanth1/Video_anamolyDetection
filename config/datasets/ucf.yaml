@@ -2,9 +2,9 @@
 # Ollama ports differ per dataset so runs can share a machine.
 evaluation:
   dataset: UCF-Crime
-  normal_dir: /home/atripathi/prudhvi/Dataset/UCFCrime/Normal_Videos_event
-  test_dir: /home/atripathi/prudhvi/Dataset/UCFCrime/Testing_Video
-  annotation_file: /home/atripathi/prudhvi/Dataset/UCFCrime/Temporal_Anomaly_Annotation_Five_FPS.txt
+  normal_dir: data/UCFCrime/Normal_Videos_event
+  test_dir: data/UCFCrime/Testing_Video
+  annotation_file: data/UCFCrime/Temporal_Anomaly_Annotation_Five_FPS.txt
   memory_bank_path: outputs/memory/ucf_unmasked_v1.npz
   checkpoint_dir: outputs/checkpoints/ucf_unmasked
 reasoning:

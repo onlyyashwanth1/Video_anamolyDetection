@@ -1,4 +1,4 @@
-# Memory novelty B (memory only, no prompts): Model B of the 2026-11-08 memory-only search.
+# Memory novelty B (memory only, no prompts): the proposed model without the judge.
 # B = z(centered MPNet caption 1-NN novelty) + 0.25 * z(CLIP image 1-NN novelty),
 # z-scored against the normal memory with each memory video left out.
 # Frames: mean of covering windows, smoothed over min(36 s, video length / 4). Offline only.

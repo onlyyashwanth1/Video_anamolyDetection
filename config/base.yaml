@@ -38,7 +38,6 @@ reasoning:
   num_ctx: 4096
   temperature: 0
   seed: 0
-  models_dir: /home/atripathi/.ollama/models
 evaluation:
   annotation_fps: native
   llm_review: false

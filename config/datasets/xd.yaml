@@ -3,7 +3,7 @@
 # Ollama ports differ per dataset so runs can share a machine.
 evaluation:
   dataset: XD-Violence
-  dataset_root: /home/atripathi/prudhvi/Dataset/XDViolence
+  dataset_root: data/XDViolence
   memory_bank_path: outputs/memory/xd_unmasked_v1.npz
   checkpoint_dir: outputs/checkpoints/xd_unmasked
 reasoning:

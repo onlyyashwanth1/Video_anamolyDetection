@@ -35,7 +35,7 @@ def feature_spec(config):
         "encoder": config["encoder"], "video_target_fps": config["video"]["target_fps"],
         "temporal": {k: config.get("temporal", {}).get(k) for k in ("mode", "window_seconds", "stride_seconds")},
         "captioning": config.get("captioning", {}),
-        "caption_model": "/home/nverma/models/gemma-4-31B-it",
+        "caption_model": "transformers:gemma-4-31B-it",
         "strict_models": True,
     }
     if spec["temporal"]["mode"] in (None, "events"):

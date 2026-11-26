@@ -2,9 +2,9 @@
 # Ollama ports differ per dataset so runs can share a machine.
 evaluation:
   dataset: Avenue
-  normal_dir: /home/atripathi/prudhvi/Dataset/Avenue/Normal_Videos
-  test_dir: /home/atripathi/prudhvi/Dataset/Avenue/Testing_Video
-  annotation_file: /home/atripathi/prudhvi/Dataset/Avenue/Temporal_Anomaly_Annotation.txt
+  normal_dir: data/Avenue/Normal_Videos
+  test_dir: data/Avenue/Testing_Video
+  annotation_file: data/Avenue/Temporal_Anomaly_Annotation.txt
   memory_bank_path: outputs/memory/avenue_unmasked_v1.npz
   checkpoint_dir: outputs/checkpoints/avenue_unmasked
 reasoning:

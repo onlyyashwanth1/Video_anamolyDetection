@@ -2,7 +2,8 @@
 
 Frozen foundation models only (CLIP ViT-L/14, Gemma 4 31B via Ollama, MPNet); no
 weights are trained or fine-tuned. All models share one perception pipeline and
-are chosen with a config file. The B.Tech project report is in `BTP_THESIS_VAD/`.
+are chosen with a config file. The B.Tech project report is
+`BTP_THESIS_VAD/BTP_report.pdf`. **Picking the project up? Start with [HANDOVER.md](HANDOVER.md).**
 
 | Model | Role in the report | Config | Normal reference | Score |
 |---|---|---|---|---|
@@ -17,7 +18,8 @@ How each one works, its settings and its results: [docs/ARCHITECTURES.md](docs/A
 ## Results
 
 Pooled frame-level metrics, the same numbers as the report
-(`outputs/results/architectures/results.md`, refresh with `scripts/collect_results.py`):
+(all metrics in [docs/results/results.md](docs/results/results.md), a copy of
+`outputs/results/architectures/results.md`; refresh with `scripts/collect_results.py`):
 
 | Model | UCF-Crime AUC | XD-Violence AP | ShanghaiTech AUC | Avenue AUC |
 |---|---|---|---|---|
@@ -69,13 +71,12 @@ scripts/
   migrate_unmasked_cache.py one-off conversion of the old masked caches (done; inputs removed)
 research/                   frozen experiment scripts behind earlier studies (see research/README.md)
 tests/                      CPU tests, no model downloads
-docs/                       ARCHITECTURES.md, site/ (walkthrough page source), diagrams/, archive/
+docs/                       ARCHITECTURES.md, results/ (final table), site/ (walkthrough pages), diagrams/, archive/
 BTP_THESIS_VAD/             the report: LaTeX source, figures, build script (see its README.md)
-outputs/                    results, caches, memory banks (not in git)
-backup/                     zipped final report and results (not in git)
+outputs/                    results, caches, memory banks (not in git; see HANDOVER.md)
 ```
 
-Datasets are read from `/home/atripathi/prudhvi/Dataset/` (paths in `config/datasets/`).
+Dataset paths are set in `config/datasets/` (they point at the original server; change them).
 
 ## Setup
 
